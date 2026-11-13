@@ -3,8 +3,8 @@ import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
 
-// KDE-Connect-inspired smartphone + arcane wizard spark badge with a corner
-// activity dot for the Omarchy top bar.
+// Wizard hat badge with a KDE-Connect-style corner activity dot for the
+// Omarchy top bar and popup header.
 Item {
   id: root
 
@@ -35,49 +35,46 @@ Item {
       ctx.clearRect(0, 0, width, height)
 
       var s = Math.min(width, height)
-      var phoneW = s * 0.56
-      var phoneH = s * 0.86
-      var px = (width - phoneW) / 2
-      var py = (height - phoneH) / 2
-      var r = Math.max(1.8, s * 0.12)
-      var strokeW = Math.max(1.4, s * 0.105)
+      var ox = (width - s) / 2
+      var oy = (height - s) / 2
+      function px(nx) { return ox + nx * s }
+      function py(ny) { return oy + ny * s }
 
       ctx.strokeStyle = root.color
       ctx.fillStyle = root.color
-      ctx.lineWidth = strokeW
       ctx.lineJoin = "round"
       ctx.lineCap = "round"
 
-      // Rounded smartphone body
+      // Slouchy pointed wizard hat crown leaning slightly right
       ctx.beginPath()
-      ctx.moveTo(px + r, py)
-      ctx.lineTo(px + phoneW - r, py)
-      ctx.quadraticCurveTo(px + phoneW, py, px + phoneW, py + r)
-      ctx.lineTo(px + phoneW, py + phoneH - r)
-      ctx.quadraticCurveTo(px + phoneW, py + phoneH, px + phoneW - r, py + phoneH)
-      ctx.lineTo(px + r, py + phoneH)
-      ctx.quadraticCurveTo(px, py + phoneH, px, py + phoneH - r)
-      ctx.lineTo(px, py + r)
-      ctx.quadraticCurveTo(px, py, px + r, py)
+      ctx.moveTo(px(0.26), py(0.56))
+      ctx.quadraticCurveTo(px(0.36), py(0.18), px(0.70), py(0.10))
+      ctx.quadraticCurveTo(px(0.60), py(0.33), px(0.74), py(0.56))
+      ctx.quadraticCurveTo(px(0.50), py(0.60), px(0.26), py(0.56))
       ctx.closePath()
-      ctx.stroke()
-
-      // Subtle bottom speaker/chin dot
-      var cx = width / 2
-      ctx.beginPath()
-      ctx.arc(cx, py + phoneH - strokeW * 1.35, Math.max(0.8, s * 0.045), 0, Math.PI * 2)
       ctx.fill()
 
-      // 4-point wizard sparkle centered inside phone screen
-      var sy = py + phoneH * 0.44
-      var sr = s * 0.165
-      var ir = sr * 0.30
+      // Wide swooping brim separated cleanly from crown to suggest a hat band
       ctx.beginPath()
-      ctx.moveTo(cx, sy - sr)
-      ctx.quadraticCurveTo(cx + ir * 0.4, sy - ir * 0.4, cx + sr, sy)
-      ctx.quadraticCurveTo(cx + ir * 0.4, sy + ir * 0.4, cx, sy + sr)
-      ctx.quadraticCurveTo(cx - ir * 0.4, sy + ir * 0.4, cx - sr, sy)
-      ctx.quadraticCurveTo(cx - ir * 0.4, sy - ir * 0.4, cx, sy - sr)
+      ctx.moveTo(px(0.06), py(0.73))
+      ctx.quadraticCurveTo(px(0.18), py(0.66), px(0.26), py(0.64))
+      ctx.quadraticCurveTo(px(0.50), py(0.69), px(0.74), py(0.64))
+      ctx.quadraticCurveTo(px(0.82), py(0.66), px(0.94), py(0.73))
+      ctx.quadraticCurveTo(px(0.50), py(0.88), px(0.06), py(0.73))
+      ctx.closePath()
+      ctx.fill()
+
+      // Small 4-point star sparkle floating in upper-left balance space
+      var sx = px(0.19)
+      var sy = py(0.27)
+      var sr = Math.max(1.8, s * 0.11)
+      var ir = sr * 0.28
+      ctx.beginPath()
+      ctx.moveTo(sx, sy - sr)
+      ctx.quadraticCurveTo(sx + ir, sy - ir, sx + sr, sy)
+      ctx.quadraticCurveTo(sx + ir, sy + ir, sx, sy + sr)
+      ctx.quadraticCurveTo(sx - ir, sy + ir, sx - sr, sy)
+      ctx.quadraticCurveTo(sx - ir, sy - ir, sx, sy - sr)
       ctx.closePath()
       ctx.fill()
     }
