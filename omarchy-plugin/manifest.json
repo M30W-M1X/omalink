@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "id": "wizard.panel",
+  "name": "Omarchy Wizard",
+  "version": "1.0.0",
+  "author": "Omarchy Wizard",
+  "license": "MIT",
+  "description": "KDE-Connect-style status badge and control panel for the Omarchy Wizard Android companion bridge.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Omarchy Wizard",
+    "description": "Shows whether the Omarchy Wizard Android bridge is active, how many devices are connected, and lets you copy pairing details or toggle the service.",
+    "category": "Status",
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "port": 7842,
+      "refreshIntervalSec": 5
+    },
+    "schema": [
+      {
+        "key": "port",
+        "type": "integer",
+        "label": "Bridge port",
+        "min": 1024,
+        "max": 65535,
+        "step": 1,
+        "defaultValue": 7842
+      },
+      {
+        "key": "refreshIntervalSec",
+        "type": "integer",
+        "label": "Poll interval (seconds)",
+        "min": 2,
+        "max": 60,
+        "step": 1,
+        "defaultValue": 5
+      }
+    ]
+  }
+}

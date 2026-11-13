@@ -378,6 +378,7 @@ class OmarchyWizardBridge:
         self.tasks: dict[str, AgentTask] = {}
         self.task_order: list[str] = []
         self.ws_clients: set[WebSocketClient] = set()
+        self._bg_tasks: set[asyncio.Task[None]] = set()
         self.server: asyncio.AbstractServer | None = None
         self.bound_port: int = port
 
@@ -405,6 +406,8 @@ class OmarchyWizardBridge:
             "available_agents": detect_available_agents(),
             "workspaces": detect_workspaces(),
             "running_tasks": running,
+            "connected_clients": len(self.ws_clients),
+            "lan_ips": detect_lan_ips(),
             "total_tasks": len(self.tasks),
         }
 
@@ -464,7 +467,9 @@ class OmarchyWizardBridge:
             "text": f"Casting via {chosen_agent} in {chosen_cwd}",
         })
         await self.broadcast("task.started", task.to_dict())
-        asyncio.create_task(self._run_task_subprocess(task, cmd))
+        bg = asyncio.create_task(self._run_task_subprocess(task, cmd))
+        self._bg_tasks.add(bg)
+        bg.add_done_callback(self._bg_tasks.discard)
         return task
 
     async def _run_task_subprocess(self, task: AgentTask, cmd: list[str]) -> None:
@@ -562,6 +567,12 @@ class OmarchyWizardBridge:
             self.bound_port = sockets[0].getsockname()[1]
 
     async def stop(self) -> None:
+        for task in list(self.tasks.values()):
+            proc = task.process
+            if proc and proc.returncode is None:
+                proc.terminate()
+        if self._bg_tasks:
+            await asyncio.gather(*list(self._bg_tasks), return_exceptions=True)
         for client in list(self.ws_clients):
             await client.close()
         self.ws_clients.clear()
