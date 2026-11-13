@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+
+# Flutter / Dart
+.dart_tool/
+.packages
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+android_app/.metadata
+android_app/android/.gradle/
+android_app/android/local.properties
+android_app/android/app/debug/
+android_app/android/app/profile/
+android_app/android/app/release/
+android_app/android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java
+*.iml
+.idea/
+.DS_Store

@@ -1,0 +1,10 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Cute monochrome wizard hat & sparkle for Android status bar notifications -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M12,2L8.2,13.5H15.8L14.2,8.5L17,6.5L12,2ZM4,16.5C4,15.67 7.58,15 12,15C16.42,15 20,15.67 20,16.5C20,17.33 16.42,18 12,18C7.58,18 4,17.33 4,16.5ZM19,4L19.7,5.3L21,6L19.7,6.7L19,8L18.3,6.7L17,6L18.3,5.3L19,4Z" />
+</vector>
