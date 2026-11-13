@@ -10,7 +10,9 @@ Panel {
   id: root
   moduleName: "wizard.panel"
   ipcTarget: "wizard.panel"
-  manageIpc: false
+
+  implicitWidth: button.implicitWidth
+  implicitHeight: button.implicitHeight
 
   readonly property string pluginDir: decodeURIComponent(String(Qt.resolvedUrl(".")).replace(/^file:\/\//, "")).replace(/\/$/, "")
 
@@ -145,19 +147,18 @@ Panel {
     anchors.fill: parent
     bar: root.bar
     tooltipText: root.opened ? "" : root.barTooltip
-    iconComponent: Component {
-      Item {
-        WizardIcon {
-          x: (parent.width - width) / 2
-          y: (parent.height - height) / 2
-          iconSize: button.iconSize
-          color: root.barIconColor
-          active: root.bridgeActive
-          connectedClients: root.connectedClients
-          runningTasks: root.runningTasks
-        }
-      }
+    iconComponent: Component { Item {} }
+
+    WizardIcon {
+      x: (button.width - width) / 2
+      y: (button.height - height) / 2
+      iconSize: button.iconSize
+      color: root.barIconColor
+      active: root.bridgeActive
+      connectedClients: root.connectedClients
+      runningTasks: root.runningTasks
     }
+
     onPressed: function(b) {
       if (b === Qt.RightButton) root.toggleBridge()
       else if (b === Qt.MiddleButton) root.refresh()

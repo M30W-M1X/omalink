@@ -12,6 +12,9 @@ A **Flutter Android app** + lightweight **Omarchy Bridge server** to remotely co
   - Launches and streams `agy -p --output-format stream-json`, `claude`, `codex`, `kimi`, or `opencode`.
   - Reads/updates Omarchy's default agent (`omarchy-default-agent` / `~/.config/omarchy/defaults/agent`).
   - Broadcasts live `task.started`, `task.event`, `task.completed`, `task.failed`, and `task.cancelled` WebSocket events.
+- `omarchy-plugin/` — Omarchy top bar status badge (`wizard.panel`), KDE Connect style
+  - Shows bridge status, active tasks, and a corner status dot in the top bar; click to inspect bridge URL, connected phones, recent tasks, or toggle the `omarchy-wizard-bridge` service.
+- `.github/workflows/build.yml` — GitHub Actions CI workflow that runs bridge unit tests, `flutter analyze`, `flutter test`, and builds/uploads `app-release.apk` as a workflow artifact.
 
 ---
 
@@ -60,3 +63,16 @@ flutter run
 3. Toggle **Demo Familiar Mode** off.
 4. Enter your Omarchy machine's LAN or Tailscale IP, port `7842`, and the token from `~/.config/omarchy-wizard/token`.
 5. Tap **Grant Permission** under Task Completion Notifications and **Test Alert** to verify Android notifications!
+
+---
+
+## 3. Omarchy Top Bar Badge (`wizard.panel`)
+
+Copy the plugin directory into `~/.config/omarchy/plugins/wizard-panel`, enable it, and restart the shell:
+
+```bash
+cp -r ~/Projects/omarchy_wizard/omarchy-plugin ~/.config/omarchy/plugins/wizard-panel
+omarchy plugin validate ~/.config/omarchy/plugins/wizard-panel
+omarchy plugin enable wizard.panel --before omarchy.agents
+omarchy restart shell
+```
