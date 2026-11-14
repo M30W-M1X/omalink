@@ -107,11 +107,25 @@ class BridgeClient extends ChangeNotifier {
     notifyListeners();
   }
 
+  String? _pendingTerminalCwd;
+  String? consumePendingTerminalCwd() {
+    final cwd = _pendingTerminalCwd;
+    _pendingTerminalCwd = null;
+    return cwd;
+  }
+
+  void stageTerminalInDirectory(String dirPath) {
+    _pendingTerminalCwd = dirPath;
+    notifyListeners();
+  }
+
   WebSocket? _ws;
   StreamSubscription<dynamic>? _wsSub;
   Timer? _reconnectTimer;
   Timer? _celebrateResetTimer;
   Timer? _demoTimer;
+  final Set<String> _watchedTaskIds = <String>{};
+  final Set<String> _notifiedTaskIds = <String>{};
   bool _disposed = false;
 
   Future<void> init() async {
@@ -304,11 +318,24 @@ class BridgeClient extends ChangeNotifier {
                     .whereType<Map<String, dynamic>>()
                     .map(AgentTask.fromJson),
               );
+            for (final t in _tasks) {
+              if (t.status == TaskStatus.running) {
+                _watchedTaskIds.add(t.id);
+              } else if (_watchedTaskIds.remove(t.id) &&
+                  (t.status == TaskStatus.completed ||
+                      t.status == TaskStatus.failed)) {
+                _onTaskTerminal(
+                  t,
+                  success: t.status == TaskStatus.completed,
+                );
+              }
+            }
           }
           _syncMoodFromTasks();
           break;
         case 'task.started':
           final task = AgentTask.fromJson(data);
+          _watchedTaskIds.add(task.id);
           _upsertTask(task);
           _selectedTaskId = task.id;
           _setMood(WizardMood.casting, quip: 'Casting "${task.prompt}"...');
@@ -406,7 +433,9 @@ class BridgeClient extends ChangeNotifier {
   }
 
   void _onTaskTerminal(AgentTask task, {required bool success}) {
-    if (_settings.notifyOnComplete) {
+    _watchedTaskIds.remove(task.id);
+    final isFirstAlert = _notifiedTaskIds.add(task.id);
+    if (_settings.notifyOnComplete && isFirstAlert) {
       unawaited(_notifications.notifyTaskFinished(task));
     }
     _celebrateResetTimer?.cancel();
@@ -474,6 +503,7 @@ class BridgeClient extends ChangeNotifier {
       final body = jsonDecode(resp.body) as Map<String, dynamic>;
       if (body['task'] is Map<String, dynamic>) {
         final task = AgentTask.fromJson(body['task'] as Map<String, dynamic>);
+        _watchedTaskIds.add(task.id);
         _upsertTask(task);
         _selectedTaskId = task.id;
         _setMood(WizardMood.casting, quip: 'Casting via $_selectedAgent...');

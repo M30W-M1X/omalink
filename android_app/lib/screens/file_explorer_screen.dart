@@ -9,10 +9,12 @@ class FileExplorerScreen extends StatefulWidget {
     super.key,
     required this.client,
     required this.onCastWizardInPath,
+    required this.onOpenTerminalInPath,
   });
 
   final BridgeClient client;
   final VoidCallback onCastWizardInPath;
+  final VoidCallback onOpenTerminalInPath;
 
   @override
   State<FileExplorerScreen> createState() => _FileExplorerScreenState();
@@ -265,6 +267,16 @@ class _FileExplorerScreenState extends State<FileExplorerScreen> {
                             ? WizardColors.cyanArcane
                             : WizardColors.textMuted,
                       ),
+                    ),
+                    IconButton(
+                      tooltip: 'Open Terminal Here',
+                      onPressed: listing == null
+                          ? null
+                          : () {
+                              client.stageTerminalInDirectory(listing.path);
+                              widget.onOpenTerminalInPath();
+                            },
+                      icon: const Icon(Icons.terminal_rounded, color: WizardColors.emeraldSage),
                     ),
                     IconButton(
                       tooltip: 'New Folder',

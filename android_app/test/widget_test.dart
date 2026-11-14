@@ -3,6 +3,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:omarchy_wizard/main.dart';
 import 'package:omarchy_wizard/models/wizard_mood.dart';
 import 'package:omarchy_wizard/services/bridge_client.dart';
+import 'package:omarchy_wizard/widgets/arcane_wizard_mascot.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -19,7 +20,7 @@ void main() {
     expect(client.mood, WizardMood.idle);
 
     // Tap the mascot to boop Arcane Agy
-    await tester.tap(find.byType(CustomPaint).first);
+    await tester.tap(find.byType(ArcaneWizardMascot));
     await tester.pump();
     expect(client.mood, WizardMood.celebrating);
 
@@ -70,5 +71,13 @@ void main() {
     await tester.pump(const Duration(milliseconds: 250));
     expect(find.text('Omarchy File Explorer'), findsOneWidget);
     expect(find.text('omarchy_wizard'), findsOneWidget);
+
+    // Switch to Terminal tab and verify interactive Demo shell + quick keys
+    await tester.tap(find.text('Terminal'));
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(find.text('Omarchy Terminal'), findsOneWidget);
+    expect(find.text('Demo Familiar Shell'), findsOneWidget);
+    expect(find.text('CTRL'), findsOneWidget);
+    expect(find.text('Pair Live'), findsOneWidget);
   });
 }

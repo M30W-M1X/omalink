@@ -3,7 +3,7 @@ import 'package:material_ui/material_ui.dart';
 import 'screens/control_plane_screen.dart';
 import 'screens/file_explorer_screen.dart';
 import 'screens/settings_screen.dart';
-import 'screens/spellbook_screen.dart';
+import 'screens/terminal_screen.dart';
 import 'screens/wizard_home_screen.dart';
 import 'services/bridge_client.dart';
 import 'services/notification_service.dart';
@@ -11,7 +11,7 @@ import 'theme/wizard_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await NotificationService.instance.init();
+  await NotificationService.instance.init(requestPermissionIfNeeded: true);
   final client = BridgeClient();
   await client.init();
   runApp(OmarchyWizardApp(client: client));
@@ -56,13 +56,15 @@ class _OmarchyWizardAppState extends State<OmarchyWizardApp> {
                   onOpenSettings: () => setState(() => _tabIndex = 4),
                 ),
                 ControlPlaneScreen(client: widget.client),
+                TerminalScreen(
+                  client: widget.client,
+                  isActive: _tabIndex == 2,
+                  onOpenSettings: () => setState(() => _tabIndex = 4),
+                ),
                 FileExplorerScreen(
                   client: widget.client,
                   onCastWizardInPath: () => setState(() => _tabIndex = 0),
-                ),
-                SpellbookScreen(
-                  client: widget.client,
-                  onInspectInHome: () => setState(() => _tabIndex = 0),
+                  onOpenTerminalInPath: () => setState(() => _tabIndex = 2),
                 ),
                 SettingsScreen(client: widget.client),
               ],
@@ -82,14 +84,14 @@ class _OmarchyWizardAppState extends State<OmarchyWizardApp> {
                   label: 'Control',
                 ),
                 NavigationDestination(
+                  icon: Icon(Icons.terminal_outlined),
+                  selectedIcon: Icon(Icons.terminal),
+                  label: 'Terminal',
+                ),
+                NavigationDestination(
                   icon: Icon(Icons.folder_outlined),
                   selectedIcon: Icon(Icons.folder),
                   label: 'Files',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.menu_book_outlined),
-                  selectedIcon: Icon(Icons.menu_book),
-                  label: 'Spells',
                 ),
                 NavigationDestination(
                   icon: Icon(Icons.settings_outlined),

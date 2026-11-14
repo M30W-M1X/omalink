@@ -10,55 +10,70 @@ class NotificationService {
   static const String _channelName = 'Wizard Spell Completions';
   static const String _channelDescription =
       'Notifications when your Omarchy AI agent completes or fails a task.';
+  static const String _smallIcon = 'ic_wizard_notify';
 
   final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
   bool _initialized = false;
+  bool _permissionPrompted = false;
 
-  Future<void> init() async {
-    if (_initialized) return;
+  Future<void> init({bool requestPermissionIfNeeded = false}) async {
+    if (!_initialized) {
+      const androidInit = AndroidInitializationSettings(_smallIcon);
+      const initSettings = InitializationSettings(android: androidInit);
 
-    const androidInit = AndroidInitializationSettings('@drawable/ic_wizard_notify');
-    const initSettings = InitializationSettings(android: androidInit);
-
-    try {
-      await _plugin.initialize(initSettings);
-      final androidImpl = _plugin
-          .resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin>();
-      if (androidImpl != null) {
-        await androidImpl.createNotificationChannel(
-          const AndroidNotificationChannel(
-            _channelId,
-            _channelName,
-            description: _channelDescription,
-            importance: Importance.high,
-            enableVibration: true,
-            playSound: true,
-          ),
-        );
+      try {
+        await _plugin.initialize(initSettings);
+        final androidImpl = _plugin
+            .resolvePlatformSpecificImplementation<
+                AndroidFlutterLocalNotificationsPlugin>();
+        if (androidImpl != null) {
+          await androidImpl.createNotificationChannel(
+            const AndroidNotificationChannel(
+              _channelId,
+              _channelName,
+              description: _channelDescription,
+              importance: Importance.high,
+              enableVibration: true,
+              playSound: true,
+            ),
+          );
+        }
+        _initialized = true;
+      } catch (e) {
+        debugPrint('NotificationService init skipped: $e');
+        return;
       }
-      _initialized = true;
-    } catch (e) {
-      debugPrint('NotificationService init skipped: $e');
+    }
+
+    if (requestPermissionIfNeeded && !_permissionPrompted) {
+      _permissionPrompted = true;
+      await ensurePermission();
     }
   }
 
-  Future<bool> requestPermission() async {
+  Future<bool> ensurePermission() async {
     await init();
+    if (!_initialized) return false;
     try {
       final androidImpl = _plugin
           .resolvePlatformSpecificImplementation<
               AndroidFlutterLocalNotificationsPlugin>();
-      final granted = await androidImpl?.requestNotificationsPermission();
-      return granted ?? true;
-    } catch (_) {
+      if (androidImpl == null) return false;
+      final alreadyEnabled = await androidImpl.areNotificationsEnabled();
+      if (alreadyEnabled == true) return true;
+      final granted = await androidImpl.requestNotificationsPermission();
+      return granted ?? false;
+    } catch (e) {
+      debugPrint('Notification permission check failed: $e');
       return false;
     }
   }
 
+  Future<bool> requestPermission() => ensurePermission();
+
   Future<void> notifyTaskFinished(AgentTask task) async {
-    await init();
+    await init(requestPermissionIfNeeded: true);
     if (!_initialized) return;
 
     final succeeded = task.status == TaskStatus.completed;
@@ -77,7 +92,7 @@ class NotificationService {
         channelDescription: _channelDescription,
         importance: Importance.high,
         priority: Priority.high,
-        icon: '@drawable/ic_wizard_notify',
+        icon: _smallIcon,
         styleInformation: BigTextStyleInformation(body),
       ),
     );
@@ -94,9 +109,16 @@ class NotificationService {
     }
   }
 
-  Future<void> showTestNotification() async {
+  Future<String?> showTestNotification() async {
     await init();
-    if (!_initialized) return;
+    if (!_initialized) {
+      return 'Notification plugin could not initialize.';
+    }
+
+    final permitted = await ensurePermission();
+    if (!permitted) {
+      return 'Notifications are blocked by Android. Grant permission in system settings.';
+    }
 
     const details = NotificationDetails(
       android: AndroidNotificationDetails(
@@ -105,7 +127,7 @@ class NotificationService {
         channelDescription: _channelDescription,
         importance: Importance.high,
         priority: Priority.high,
-        icon: '@drawable/ic_wizard_notify',
+        icon: _smallIcon,
       ),
     );
 
@@ -116,8 +138,10 @@ class NotificationService {
         'Task completion notifications from Omarchy will appear right here.',
         details,
       );
+      return null;
     } catch (e) {
-      debugPrint('Test notification skipped: $e');
+      debugPrint('Test notification failed: $e');
+      return 'Failed to show alert: $e';
     }
   }
 }

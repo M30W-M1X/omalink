@@ -234,8 +234,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       Expanded(
                         child: FilledButton.tonalIcon(
                           onPressed: () async {
-                            await NotificationService.instance
+                            final err = await NotificationService.instance
                                 .showTestNotification();
+                            if (!context.mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  err ?? 'Test alert sent ✨',
+                                ),
+                                backgroundColor:
+                                    err != null ? WizardColors.coralError : null,
+                              ),
+                            );
                           },
                           icon: const Icon(Icons.auto_awesome),
                           label: const Text('Test Alert'),

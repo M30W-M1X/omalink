@@ -7,6 +7,7 @@ import '../widgets/arcane_wizard_mascot.dart';
 import '../widgets/quick_cast_bar.dart';
 import '../widgets/spell_log_view.dart';
 import '../widgets/status_pill.dart';
+import 'spellbook_screen.dart';
 
 class WizardHomeScreen extends StatefulWidget {
   const WizardHomeScreen({
@@ -95,6 +96,29 @@ class _WizardHomeScreenState extends State<WizardHomeScreen> {
                             ),
                           ),
                         ],
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Spellbook History',
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (ctx) => Scaffold(
+                              appBar: AppBar(
+                                title: const Text('Spellbook'),
+                                backgroundColor: WizardColors.obsidian,
+                              ),
+                              body: SpellbookScreen(
+                                client: client,
+                                onInspectInHome: () => Navigator.of(ctx).pop(),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                      icon: const Icon(
+                        Icons.menu_book_outlined,
+                        color: WizardColors.violetArcane,
                       ),
                     ),
                     StatusPill(

@@ -21,6 +21,7 @@ class WizardSettings {
 
   String get httpBaseUrl => 'http://$host:$port';
   String get wsUrl => 'ws://$host:$port/ws';
+  String get terminalWsUrl => 'ws://$host:$port/ws/terminal';
 
   WizardSettings copyWith({
     String? host,

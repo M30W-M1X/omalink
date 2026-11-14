@@ -33,6 +33,7 @@ import uuid
 
 import omarchy_control
 import omarchy_files
+import omarchy_pty
 
 WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 DEFAULT_PORT = 7842
@@ -641,13 +642,17 @@ class OmarchyWizardBridge:
                 k, v = line.split(":", 1)
                 headers[k.strip().lower()] = v.strip()
 
-        # WebSocket upgrade on /ws
-        if method == "GET" and path == "/ws" and headers.get("upgrade", "").lower() == "websocket":
-            if not self.is_authorized(headers, query):
-                await self._send_http_json(writer, HTTPStatus.UNAUTHORIZED, {"error": "Unauthorized"})
+        # WebSocket upgrades on /ws and /ws/terminal
+        if method == "GET" and headers.get("upgrade", "").lower() == "websocket":
+            if path in {"/ws", "/ws/terminal"}:
+                if not self.is_authorized(headers, query):
+                    await self._send_http_json(writer, HTTPStatus.UNAUTHORIZED, {"error": "Unauthorized"})
+                    return
+                if path == "/ws":
+                    await self._handle_websocket(reader, writer, headers)
+                else:
+                    await self._handle_terminal_websocket(reader, writer, headers, query)
                 return
-            await self._handle_websocket(reader, writer, headers)
-            return
 
         # Read optional HTTP body
         content_length = int(headers.get("content-length", "0") or "0")
@@ -839,16 +844,16 @@ class OmarchyWizardBridge:
 
         await self._send_http_json(writer, HTTPStatus.NOT_FOUND, {"error": "Not found"})
 
-    async def _handle_websocket(
+    async def _upgrade_websocket(
         self,
         reader: asyncio.StreamReader,
         writer: asyncio.StreamWriter,
         headers: dict[str, str],
-    ) -> None:
+    ) -> WebSocketClient | None:
         ws_key = headers.get("sec-websocket-key", "")
         if not ws_key:
             await self._send_http_json(writer, HTTPStatus.BAD_REQUEST, {"error": "Missing WebSocket key"})
-            return
+            return None
         accept = base64.b64encode(
             hashlib.sha1((ws_key + WS_GUID).encode("ascii")).digest()
         ).decode("ascii")
@@ -860,8 +865,29 @@ class OmarchyWizardBridge:
         )
         writer.write(response.encode("ascii"))
         await writer.drain()
+        return WebSocketClient(reader, writer)
 
-        client = WebSocketClient(reader, writer)
+    async def _handle_terminal_websocket(
+        self,
+        reader: asyncio.StreamReader,
+        writer: asyncio.StreamWriter,
+        headers: dict[str, str],
+        query: dict[str, list[str]],
+    ) -> None:
+        client = await self._upgrade_websocket(reader, writer, headers)
+        if client is None:
+            return
+        await omarchy_pty.handle_terminal_websocket(client, query)
+
+    async def _handle_websocket(
+        self,
+        reader: asyncio.StreamReader,
+        writer: asyncio.StreamWriter,
+        headers: dict[str, str],
+    ) -> None:
+        client = await self._upgrade_websocket(reader, writer, headers)
+        if client is None:
+            return
         self.ws_clients.add(client)
         try:
             await client.send_json({

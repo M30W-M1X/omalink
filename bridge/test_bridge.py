@@ -52,6 +52,24 @@ async def _ws_read_frame(reader: asyncio.StreamReader) -> tuple[int, bytes]:
     return opcode, payload
 
 
+async def _ws_send_masked_text(writer: asyncio.StreamWriter, text: str) -> None:
+    payload = text.encode("utf-8")
+    mask = b"\x12\x34\x56\x78"
+    header = bytearray([0x81])
+    length = len(payload)
+    if length < 126:
+        header.append(0x80 | length)
+    elif length < 65536:
+        header.append(0x80 | 126)
+        header.extend(struct.pack("!H", length))
+    else:
+        header.append(0x80 | 127)
+        header.extend(struct.pack("!Q", length))
+    masked = bytes(b ^ mask[i % 4] for i, b in enumerate(payload))
+    writer.write(bytes(header) + mask + masked)
+    await writer.drain()
+
+
 class BridgeTests(unittest.TestCase):
     def test_command_builders(self) -> None:
         agy_cmd = build_agent_command("agy", "Fix bug", mode="plan", effort="high", conversation_id="abc")
@@ -329,6 +347,89 @@ class BridgeTests(unittest.TestCase):
                 self.assertIn("Firefox", msg)
                 primary2, _ = omarchy_control._read_media_players()
                 self.assertEqual(primary2["identity"], "Firefox")
+
+    def test_terminal_websocket_pty_roundtrip(self) -> None:
+        asyncio.run(self._run_terminal_pty_test())
+
+    async def _run_terminal_pty_test(self) -> None:
+        bridge = OmarchyWizardBridge(host="127.0.0.1", port=0, token="term-token")
+        await bridge.start()
+        port = bridge.bound_port
+        try:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                # Reject unauthorized terminal connection
+                r_bad, w_bad = await asyncio.open_connection("127.0.0.1", port)
+                key = base64.b64encode(os.urandom(16)).decode("ascii")
+                bad_req = (
+                    "GET /ws/terminal?token=wrong HTTP/1.1\r\n"
+                    f"Host: 127.0.0.1:{port}\r\n"
+                    "Upgrade: websocket\r\n"
+                    "Connection: Upgrade\r\n"
+                    f"Sec-WebSocket-Key: {key}\r\n"
+                    "Sec-WebSocket-Version: 13\r\n\r\n"
+                )
+                w_bad.write(bad_req.encode("ascii"))
+                await w_bad.drain()
+                status_line = (await r_bad.readline()).decode("ascii")
+                self.assertIn("401", status_line)
+                w_bad.close()
+                await w_bad.wait_closed()
+
+                # Connect authenticated terminal WebSocket
+                ws_reader, ws_writer = await asyncio.open_connection("127.0.0.1", port)
+                ws_key = base64.b64encode(os.urandom(16)).decode("ascii")
+                req = (
+                    f"GET /ws/terminal?cols=100&rows=30&cwd={quote(tmpdir)}&token=term-token HTTP/1.1\r\n"
+                    f"Host: 127.0.0.1:{port}\r\n"
+                    "Upgrade: websocket\r\n"
+                    "Connection: Upgrade\r\n"
+                    f"Sec-WebSocket-Key: {ws_key}\r\n"
+                    "Sec-WebSocket-Version: 13\r\n\r\n"
+                )
+                ws_writer.write(req.encode("ascii"))
+                await ws_writer.drain()
+                handshake = await ws_reader.readuntil(b"\r\n\r\n")
+                self.assertIn(b"101 Switching Protocols", handshake)
+
+                _, ready_raw = await asyncio.wait_for(_ws_read_frame(ws_reader), timeout=5.0)
+                ready = json.loads(ready_raw.decode("utf-8"))
+                self.assertEqual(ready["type"], "ready")
+                self.assertEqual(ready["cols"], 100)
+                self.assertEqual(ready["rows"], 30)
+                self.assertEqual(ready["cwd"], str(Path(tmpdir).resolve()))
+
+                await _ws_send_masked_text(
+                    ws_writer, json.dumps({"type": "resize", "cols": 120, "rows": 40})
+                )
+                await _ws_send_masked_text(
+                    ws_writer,
+                    json.dumps({"type": "input", "data": "pwd && echo PTY_OK_42 && exit\n"}),
+                )
+
+                output_chunks: list[str] = []
+                exit_code = None
+                for _ in range(80):
+                    opcode, raw = await asyncio.wait_for(_ws_read_frame(ws_reader), timeout=5.0)
+                    if opcode == 0x8:
+                        break
+                    if opcode != 0x1:
+                        continue
+                    msg = json.loads(raw.decode("utf-8"))
+                    if msg.get("type") == "output":
+                        output_chunks.append(msg["data"])
+                    elif msg.get("type") == "exit":
+                        exit_code = msg.get("code")
+                        break
+
+                combined = "".join(output_chunks)
+                self.assertIn("PTY_OK_42", combined)
+                self.assertIn(str(Path(tmpdir).resolve()), combined)
+                self.assertEqual(exit_code, 0)
+
+                ws_writer.close()
+                await ws_writer.wait_closed()
+        finally:
+            await bridge.stop()
 
 
 if __name__ == "__main__":
