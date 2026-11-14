@@ -1,0 +1,28 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Slouchy pointed wizard hat crown matching the Omarchy top bar badge -->
+    <path
+        android:fillColor="#FFE2E8FA"
+        android:pathData="M39.6,58.6 Q45.6,35.8 66.0,31.0 Q60.0,44.8 68.4,58.6 Q54.0,61.0 39.6,58.6 Z" />
+
+    <!-- Wide swooping brim separated from the crown -->
+    <path
+        android:fillColor="#FFE2E8FA"
+        android:pathData="M27.6,68.8 Q34.8,64.6 39.6,63.4 Q54.0,66.4 68.4,63.4 Q73.2,64.6 80.4,68.8 Q54.0,77.8 27.6,68.8 Z" />
+
+    <!-- Upper-left 4-point arcane star sparkle -->
+    <path
+        android:fillColor="#FF7DCFFF"
+        android:pathData="M35.4,34.0 Q37.4,39.2 42.6,41.2 Q37.4,43.2 35.4,48.4 Q33.4,43.2 28.2,41.2 Q33.4,39.2 35.4,34.0 Z" />
+
+    <!-- Corner status dot halo + Omarchy sage/emerald dot -->
+    <path
+        android:fillColor="#FF151828"
+        android:pathData="M75.5,63.0 A10.5,10.5 0 1,1 75.49,63.0 Z" />
+    <path
+        android:fillColor="#FF9ECE6A"
+        android:pathData="M75.5,66.2 A7.3,7.3 0 1,1 75.49,66.2 Z" />
+</vector>
