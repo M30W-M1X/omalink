@@ -285,6 +285,51 @@ class BridgeTests(unittest.TestCase):
         finally:
             await bridge.stop()
 
+    def test_mpris_media_discovery_and_selection(self) -> None:
+        buses = [
+            "org.mpris.MediaPlayer2.firefox.instance_1_2",
+            "org.mpris.MediaPlayer2.spotify",
+        ]
+
+        def fake_prop(bus: str, iface: str, prop: str):
+            data = {
+                ("org.mpris.MediaPlayer2.firefox.instance_1_2", "Identity"): "Firefox",
+                ("org.mpris.MediaPlayer2.firefox.instance_1_2", "PlaybackStatus"): "Paused",
+                ("org.mpris.MediaPlayer2.firefox.instance_1_2", "Metadata"): {
+                    "xesam:title": {"type": "s", "data": "Lo-Fi Stream"},
+                    "xesam:artist": {"type": "as", "data": ["Stream"]},
+                },
+                ("org.mpris.MediaPlayer2.spotify", "Identity"): "Spotify",
+                ("org.mpris.MediaPlayer2.spotify", "PlaybackStatus"): "Playing",
+                ("org.mpris.MediaPlayer2.spotify", "Metadata"): {
+                    "xesam:title": {"type": "s", "data": "Arcane Waves"},
+                    "xesam:artist": {"type": "as", "data": ["Wizard"]},
+                    "xesam:album": {"type": "s", "data": "Omarchy"},
+                },
+                ("org.mpris.MediaPlayer2.spotify", "Shuffle"): True,
+                ("org.mpris.MediaPlayer2.spotify", "LoopStatus"): "Playlist",
+            }
+            return data.get((bus, prop))
+
+        omarchy_control._SELECTED_MEDIA_BUS = ""
+        with mock.patch.object(omarchy_control, "_list_mpris_buses", return_value=buses):
+            with mock.patch.object(omarchy_control, "_busctl_get_prop", side_effect=fake_prop):
+                primary, players = omarchy_control._read_media_players()
+                self.assertEqual(len(players), 2)
+                # Active Playing player (Spotify) should be preferred over Paused Firefox
+                self.assertEqual(primary["identity"], "Spotify")
+                self.assertEqual(primary["title"], "Arcane Waves")
+                self.assertTrue(primary["shuffle"])
+
+                ok, msg = omarchy_control._dispatch_media_action(
+                    "media.select_player",
+                    {"bus_name": "org.mpris.MediaPlayer2.firefox.instance_1_2"},
+                )
+                self.assertTrue(ok)
+                self.assertIn("Firefox", msg)
+                primary2, _ = omarchy_control._read_media_players()
+                self.assertEqual(primary2["identity"], "Firefox")
+
 
 if __name__ == "__main__":
     unittest.main()

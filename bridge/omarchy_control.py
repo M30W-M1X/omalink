@@ -19,6 +19,13 @@ from pathlib import Path
 from typing import Any
 
 
+_SELECTED_MEDIA_BUS: str = ""
+_MPRIS_PREFIX = "org.mpris.MediaPlayer2."
+_MPRIS_OBJ = "/org/mpris/MediaPlayer2"
+_MPRIS_ROOT_IFACE = "org.mpris.MediaPlayer2"
+_MPRIS_PLAYER_IFACE = "org.mpris.MediaPlayer2.Player"
+
+
 def _run_cmd(cmd: list[str], timeout: float = 4.0) -> tuple[int, str, str]:
     """Run a quick command synchronously and capture (returncode, stdout, stderr)."""
     try:
@@ -127,6 +134,169 @@ def _parse_wpctl_volume(target: str) -> tuple[int, bool]:
     return max(0, min(150, percent)), muted
 
 
+def _busctl_get_prop(bus_name: str, iface: str, prop: str) -> Any:
+    if not shutil.which("busctl"):
+        return None
+    rc, out, _ = _run_cmd(
+        ["busctl", "--user", "--json=short", "get-property", bus_name, _MPRIS_OBJ, iface, prop],
+        timeout=1.5,
+    )
+    if rc != 0 or not out:
+        return None
+    try:
+        decoded = json.loads(out)
+        if isinstance(decoded, dict) and "data" in decoded:
+            return decoded["data"]
+    except json.JSONDecodeError:
+        pass
+    return None
+
+
+def _mpris_unwrap(val: Any) -> Any:
+    """Extract raw value from a busctl --json=short variant wrapper."""
+    if isinstance(val, dict) and "type" in val and "data" in val:
+        return val["data"]
+    return val
+
+
+def _list_mpris_buses() -> list[str]:
+    if not shutil.which("busctl"):
+        return []
+    rc, out, _ = _run_cmd(["busctl", "--user", "list"], timeout=2.0)
+    if rc != 0 or not out:
+        return []
+    buses: set[str] = set()
+    for line in out.splitlines():
+        parts = line.split()
+        if not parts:
+            continue
+        name = parts[0].strip()
+        if name.startswith(_MPRIS_PREFIX) and re.fullmatch(r"[A-Za-z0-9_.-]+", name):
+            buses.add(name)
+    return sorted(buses)
+
+
+def _read_mpris_player(bus_name: str) -> dict[str, Any]:
+    raw_id = _busctl_get_prop(bus_name, _MPRIS_ROOT_IFACE, "Identity")
+    fallback_id = bus_name[len(_MPRIS_PREFIX) :].split(".", 1)[0].capitalize()
+    identity = str(raw_id).strip() if isinstance(raw_id, str) and raw_id.strip() else fallback_id
+
+    raw_status = _busctl_get_prop(bus_name, _MPRIS_PLAYER_IFACE, "PlaybackStatus")
+    status = str(raw_status).strip() if isinstance(raw_status, str) and raw_status.strip() else "Stopped"
+
+    raw_meta = _busctl_get_prop(bus_name, _MPRIS_PLAYER_IFACE, "Metadata")
+    meta = raw_meta if isinstance(raw_meta, dict) else {}
+
+    title = str(_mpris_unwrap(meta.get("xesam:title")) or "").strip()
+    album = str(_mpris_unwrap(meta.get("xesam:album")) or "").strip()
+    art_url = str(_mpris_unwrap(meta.get("mpris:artUrl")) or "").strip()
+
+    raw_artist = _mpris_unwrap(meta.get("xesam:artist"))
+    if isinstance(raw_artist, list):
+        artist = ", ".join(str(a).strip() for a in raw_artist if str(a).strip())
+    elif isinstance(raw_artist, str):
+        artist = raw_artist.strip()
+    else:
+        artist = ""
+
+    raw_len = _mpris_unwrap(meta.get("mpris:length"))
+    length_ms = int(raw_len // 1000) if isinstance(raw_len, (int, float)) and raw_len > 0 else 0
+
+    raw_pos = _busctl_get_prop(bus_name, _MPRIS_PLAYER_IFACE, "Position")
+    position_ms = int(raw_pos // 1000) if isinstance(raw_pos, (int, float)) and raw_pos >= 0 else 0
+
+    raw_shuffle = _busctl_get_prop(bus_name, _MPRIS_PLAYER_IFACE, "Shuffle")
+    shuffle = bool(raw_shuffle) if isinstance(raw_shuffle, bool) else None
+
+    raw_loop = _busctl_get_prop(bus_name, _MPRIS_PLAYER_IFACE, "LoopStatus")
+    loop_status = str(raw_loop).strip() if isinstance(raw_loop, str) and raw_loop.strip() else None
+
+    return {
+        "available": True,
+        "bus_name": bus_name,
+        "identity": identity,
+        "status": status,
+        "title": title,
+        "artist": artist,
+        "album": album,
+        "art_url": art_url,
+        "length_ms": length_ms,
+        "position_ms": position_ms,
+        "shuffle": shuffle,
+        "loop_status": loop_status,
+    }
+
+
+def _read_media_players() -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    global _SELECTED_MEDIA_BUS
+    buses = _list_mpris_buses()
+    players = [_read_mpris_player(bus) for bus in buses]
+
+    if players:
+        chosen = None
+        if _SELECTED_MEDIA_BUS:
+            for p in players:
+                if p["bus_name"] == _SELECTED_MEDIA_BUS:
+                    chosen = p
+                    break
+        if chosen is None:
+            for desired in ("Playing", "Paused"):
+                for p in players:
+                    if p["status"] == desired:
+                        chosen = p
+                        break
+                if chosen is not None:
+                    break
+        if chosen is None:
+            chosen = players[0]
+        _SELECTED_MEDIA_BUS = chosen["bus_name"]
+        return chosen, players
+
+    # Legacy playerctl fallback when D-Bus busctl isn't available
+    if shutil.which("playerctl"):
+        rc, status_out, _ = _run_cmd(["playerctl", "status"], timeout=1.5)
+        if rc == 0 and status_out:
+            _, meta_out, _ = _run_cmd(
+                ["playerctl", "metadata", "--format", "{{playerName}}\t{{title}}\t{{artist}}\t{{album}}"],
+                timeout=1.5,
+            )
+            parts = meta_out.split("\t") if meta_out else []
+            identity = parts[0].strip().capitalize() if len(parts) > 0 and parts[0].strip() else "Player"
+            title = parts[1].strip() if len(parts) > 1 else ""
+            artist = parts[2].strip() if len(parts) > 2 else ""
+            album = parts[3].strip() if len(parts) > 3 else ""
+            player = {
+                "available": True,
+                "bus_name": "",
+                "identity": identity,
+                "status": status_out.strip(),
+                "title": title,
+                "artist": artist,
+                "album": album,
+                "art_url": "",
+                "length_ms": 0,
+                "position_ms": 0,
+                "shuffle": None,
+                "loop_status": None,
+            }
+            return player, [player]
+
+    return {
+        "available": False,
+        "bus_name": "",
+        "identity": "",
+        "status": "Stopped",
+        "title": "",
+        "artist": "",
+        "album": "",
+        "art_url": "",
+        "length_ms": 0,
+        "position_ms": 0,
+        "shuffle": None,
+        "loop_status": None,
+    }, []
+
+
 def _read_audio_state() -> dict[str, Any]:
     vol, muted = _parse_wpctl_volume("@DEFAULT_AUDIO_SINK@")
     _, mic_muted = _parse_wpctl_volume("@DEFAULT_AUDIO_SOURCE@")
@@ -162,23 +332,7 @@ def _read_audio_state() -> dict[str, Any]:
             if current and current.get("name"):
                 sinks.append(current)
 
-    player: dict[str, Any] = {"available": False, "status": "Stopped", "title": "", "artist": ""}
-    if shutil.which("playerctl"):
-        rc, status_out, _ = _run_cmd(["playerctl", "status"], timeout=1.5)
-        if rc == 0 and status_out:
-            _, meta_out, _ = _run_cmd(
-                ["playerctl", "metadata", "--format", "{{title}}\t{{artist}}"],
-                timeout=1.5,
-            )
-            title, artist = "", ""
-            if "\t" in meta_out:
-                title, artist = meta_out.split("\t", 1)
-            player = {
-                "available": True,
-                "status": status_out.strip(),
-                "title": title.strip(),
-                "artist": artist.strip(),
-            }
+    player, players = _read_media_players()
 
     return {
         "volume": vol,
@@ -187,6 +341,7 @@ def _read_audio_state() -> dict[str, Any]:
         "default_sink": default_sink,
         "sinks": sinks,
         "player": player,
+        "players": players,
     }
 
 
@@ -399,9 +554,6 @@ def _run_omarchy_action(cmd: list[str], success_msg: str, fail_prefix: str = "Ac
 _SIMPLE_COMMANDS: dict[str, tuple[list[str], str]] = {
     "audio.toggle_mute": (["omarchy-audio-output-volume", "mute-toggle"], "Toggled audio mute"),
     "audio.toggle_mic_mute": (["omarchy-audio-input-mute"], "Toggled microphone mute"),
-    "media.play_pause": (["playerctl", "play-pause"], "Toggled media playback"),
-    "media.next": (["playerctl", "next"], "Skipped to next track"),
-    "media.previous": (["playerctl", "previous"], "Returned to previous track"),
     "theme.next_bg": (["omarchy-theme-bg-next"], "Cycled desktop wallpaper"),
     "toggle.nightlight": (["omarchy-toggle-nightlight"], "Toggled nightlight"),
     "toggle.idle": (["omarchy-toggle-idle"], "Toggled stay-awake mode"),
@@ -423,9 +575,89 @@ _SIMPLE_COMMANDS: dict[str, tuple[list[str], str]] = {
 }
 
 
+def _resolve_target_mpris_bus(requested: str | None = None) -> str | None:
+    buses = _list_mpris_buses()
+    if not buses:
+        return None
+    if requested and requested in buses:
+        return requested
+    primary, _ = _read_media_players()
+    bus = primary.get("bus_name")
+    return bus if bus in buses else buses[0]
+
+
+def _dispatch_media_action(action: str, params: dict[str, Any]) -> tuple[bool, str]:
+    global _SELECTED_MEDIA_BUS
+    requested_bus = str(params.get("bus_name") or "").strip()
+
+    if action == "media.select_player":
+        buses = _list_mpris_buses()
+        if requested_bus not in buses:
+            return False, "Requested media player is no longer active"
+        _SELECTED_MEDIA_BUS = requested_bus
+        info = _read_mpris_player(requested_bus)
+        return True, f"Selected {info['identity']} as active media player"
+
+    mpris_methods = {
+        "media.play_pause": ("PlayPause", "Toggled playback"),
+        "media.play": ("Play", "Started playback"),
+        "media.pause": ("Pause", "Paused playback"),
+        "media.next": ("Next", "Skipped to next track"),
+        "media.previous": ("Previous", "Returned to previous track"),
+        "media.stop": ("Stop", "Stopped playback"),
+    }
+
+    target_bus = _resolve_target_mpris_bus(requested_bus or None)
+    if action in mpris_methods:
+        method, label = mpris_methods[action]
+        if target_bus and shutil.which("busctl"):
+            ok, msg = _run_omarchy_action(
+                ["busctl", "--user", "call", target_bus, _MPRIS_OBJ, _MPRIS_PLAYER_IFACE, method],
+                label,
+            )
+            return ok, msg
+        if shutil.which("playerctl"):
+            pc_map = {
+                "PlayPause": "play-pause",
+                "Play": "play",
+                "Pause": "pause",
+                "Next": "next",
+                "Previous": "previous",
+                "Stop": "stop",
+            }
+            return _run_omarchy_action(["playerctl", pc_map[method]], label)
+        return False, "No active MPRIS2 media player found"
+
+    if not target_bus:
+        return False, "No active MPRIS2 media player found"
+
+    if action == "media.toggle_shuffle":
+        cur = _busctl_get_prop(target_bus, _MPRIS_PLAYER_IFACE, "Shuffle")
+        nxt = "false" if cur is True else "true"
+        return _run_omarchy_action(
+            ["busctl", "--user", "set-property", target_bus, _MPRIS_OBJ, _MPRIS_PLAYER_IFACE, "Shuffle", "b", nxt],
+            f"Shuffle {'on' if nxt == 'true' else 'off'}",
+        )
+
+    if action == "media.cycle_loop":
+        cur = str(_busctl_get_prop(target_bus, _MPRIS_PLAYER_IFACE, "LoopStatus") or "None")
+        order = ["None", "Playlist", "Track"]
+        nxt = order[(order.index(cur) + 1) % len(order)] if cur in order else "Playlist"
+        return _run_omarchy_action(
+            ["busctl", "--user", "set-property", target_bus, _MPRIS_OBJ, _MPRIS_PLAYER_IFACE, "LoopStatus", "s", nxt],
+            f"Loop mode: {nxt}",
+        )
+
+    return False, f"Unsupported media action: {action}"
+
+
 def execute_control_action_sync(action: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
     """Dispatch an allowlisted OS control plane action synchronously."""
     params = params or {}
+
+    if action.startswith("media."):
+        ok, status_msg = _dispatch_media_action(action, params)
+        return _action_result(ok, status_msg, state=read_system_state_sync())
 
     if action in _SIMPLE_COMMANDS:
         cmd, msg = _SIMPLE_COMMANDS[action]

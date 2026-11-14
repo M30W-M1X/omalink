@@ -655,6 +655,39 @@ class BridgeClient extends ChangeNotifier {
         );
         _systemMessage = 'Switched audio output (demo)';
         break;
+      case 'media.select_player':
+        final bus = params['bus_name']?.toString() ?? '';
+        for (final p in s.audio.players) {
+          if (p.busName == bus) {
+            _systemState = s.copyWith(audio: s.audio.copyWith(player: p));
+            _systemMessage = 'Selected ${p.identity} (demo)';
+            break;
+          }
+        }
+        break;
+      case 'media.play_pause':
+        final nextStatus = s.audio.player.status == 'Playing' ? 'Paused' : 'Playing';
+        _systemState = s.copyWith(
+          audio: s.audio.copyWith(player: s.audio.player.copyWith(status: nextStatus)),
+        );
+        _systemMessage = '$nextStatus (demo)';
+        break;
+      case 'media.toggle_shuffle':
+        final nextShuffle = !(s.audio.player.shuffle ?? false);
+        _systemState = s.copyWith(
+          audio: s.audio.copyWith(player: s.audio.player.copyWith(shuffle: nextShuffle)),
+        );
+        _systemMessage = 'Shuffle ${nextShuffle ? 'on' : 'off'} (demo)';
+        break;
+      case 'media.cycle_loop':
+        const order = ['None', 'Playlist', 'Track'];
+        final cur = s.audio.player.loopStatus ?? 'None';
+        final nxt = order[(order.indexOf(cur) + 1) % order.length];
+        _systemState = s.copyWith(
+          audio: s.audio.copyWith(player: s.audio.player.copyWith(loopStatus: nxt)),
+        );
+        _systemMessage = 'Loop mode: $nxt (demo)';
+        break;
       case 'toggle.nightlight':
         _systemState = s.copyWith(
           toggles: s.toggles.copyWith(nightlight: !s.toggles.nightlight),

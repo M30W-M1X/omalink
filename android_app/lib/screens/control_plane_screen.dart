@@ -233,7 +233,13 @@ class _ControlPlaneScreenState extends State<ControlPlaneScreen> {
                         _ActionChipButton(
                           icon: Icons.skip_previous_rounded,
                           label: 'Prev',
-                          onTap: () => _dispatch('media.previous'),
+                          onTap: () => _dispatch(
+                            'media.previous',
+                            params: {
+                              if (s.audio.player.busName.isNotEmpty)
+                                'bus_name': s.audio.player.busName,
+                            },
+                          ),
                         ),
                         _ActionChipButton(
                           icon: s.audio.player.status == 'Playing'
@@ -241,22 +247,146 @@ class _ControlPlaneScreenState extends State<ControlPlaneScreen> {
                               : Icons.play_arrow_rounded,
                           label: s.audio.player.status == 'Playing' ? 'Pause' : 'Play',
                           active: s.audio.player.status == 'Playing',
-                          onTap: () => _dispatch('media.play_pause'),
+                          onTap: () => _dispatch(
+                            'media.play_pause',
+                            params: {
+                              if (s.audio.player.busName.isNotEmpty)
+                                'bus_name': s.audio.player.busName,
+                            },
+                          ),
                         ),
                         _ActionChipButton(
                           icon: Icons.skip_next_rounded,
                           label: 'Next',
-                          onTap: () => _dispatch('media.next'),
+                          onTap: () => _dispatch(
+                            'media.next',
+                            params: {
+                              if (s.audio.player.busName.isNotEmpty)
+                                'bus_name': s.audio.player.busName,
+                            },
+                          ),
                         ),
+                        if (s.audio.player.shuffle != null)
+                          _ActionChipButton(
+                            icon: Icons.shuffle_rounded,
+                            label: 'Shuffle',
+                            active: s.audio.player.shuffle == true,
+                            onTap: () => _dispatch(
+                              'media.toggle_shuffle',
+                              params: {
+                                if (s.audio.player.busName.isNotEmpty)
+                                  'bus_name': s.audio.player.busName,
+                              },
+                            ),
+                          ),
+                        if (s.audio.player.loopStatus != null)
+                          _ActionChipButton(
+                            icon: s.audio.player.loopStatus == 'Track'
+                                ? Icons.repeat_one_rounded
+                                : Icons.repeat_rounded,
+                            label: 'Loop: ${s.audio.player.loopStatus}',
+                            active: s.audio.player.loopStatus != 'None',
+                            onTap: () => _dispatch(
+                              'media.cycle_loop',
+                              params: {
+                                if (s.audio.player.busName.isNotEmpty)
+                                  'bus_name': s.audio.player.busName,
+                              },
+                            ),
+                          ),
                       ],
                     ),
-                    if (s.audio.player.available && s.audio.player.title.isNotEmpty) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        '♪ ${s.audio.player.title}${s.audio.player.artist.isNotEmpty ? ' — ${s.audio.player.artist}' : ''}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(color: WizardColors.textMuted, fontSize: 12),
+                    if (s.audio.player.available) ...[
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: WizardColors.surfaceElevated,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: WizardColors.borderSubtle),
+                        ),
+                        child: Row(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: s.audio.player.artUrl.startsWith('http')
+                                  ? Image.network(
+                                      s.audio.player.artUrl,
+                                      width: 44,
+                                      height: 44,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) => const _FallbackArt(),
+                                    )
+                                  : const _FallbackArt(),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    s.audio.player.title.isNotEmpty
+                                        ? s.audio.player.title
+                                        : s.audio.player.identity,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: WizardColors.textPrimary,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                  if (s.audio.player.artist.isNotEmpty ||
+                                      s.audio.player.album.isNotEmpty)
+                                    Text(
+                                      [
+                                        if (s.audio.player.artist.isNotEmpty) s.audio.player.artist,
+                                        if (s.audio.player.album.isNotEmpty) s.audio.player.album,
+                                      ].join(' • '),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        color: WizardColors.textMuted,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              s.audio.player.identity.toUpperCase(),
+                              style: const TextStyle(
+                                color: WizardColors.emeraldSage,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.7,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    if (s.audio.players.length > 1) ...[
+                      const SizedBox(height: 10),
+                      const Text(
+                        'Media Player',
+                        style: TextStyle(color: WizardColors.textMuted, fontSize: 11),
+                      ),
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 6,
+                        children: s.audio.players.map((p) {
+                          return ChoiceChip(
+                            label: Text('${p.identity} (${p.status})'),
+                            selected: p.busName == s.audio.player.busName,
+                            onSelected: (_) => _dispatch(
+                              'media.select_player',
+                              params: {'bus_name': p.busName},
+                            ),
+                          );
+                        }).toList(),
                       ),
                     ],
                     if (s.audio.sinks.isNotEmpty) ...[
@@ -786,6 +916,24 @@ class _ActionChipButton extends StatelessWidget {
           ? activeColor.withValues(alpha: 0.14)
           : WizardColors.surfaceElevated,
       onPressed: onTap,
+    );
+  }
+}
+
+class _FallbackArt extends StatelessWidget {
+  const _FallbackArt();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 44,
+      height: 44,
+      color: WizardColors.obsidian,
+      child: const Icon(
+        Icons.music_note_rounded,
+        color: WizardColors.cyanArcane,
+        size: 22,
+      ),
     );
   }
 }

@@ -75,22 +75,67 @@ class AudioSink {
 class MediaPlayerState {
   const MediaPlayerState({
     required this.available,
+    required this.busName,
+    required this.identity,
     required this.status,
     required this.title,
     required this.artist,
+    required this.album,
+    required this.artUrl,
+    required this.lengthMs,
+    required this.positionMs,
+    this.shuffle,
+    this.loopStatus,
   });
 
   final bool available;
+  final String busName;
+  final String identity;
   final String status;
   final String title;
   final String artist;
+  final String album;
+  final String artUrl;
+  final int lengthMs;
+  final int positionMs;
+  final bool? shuffle;
+  final String? loopStatus;
 
   factory MediaPlayerState.fromJson(Map<String, dynamic> json) {
     return MediaPlayerState(
       available: json['available'] == true,
+      busName: json['bus_name']?.toString() ?? '',
+      identity: json['identity']?.toString() ?? '',
       status: json['status']?.toString() ?? 'Stopped',
       title: json['title']?.toString() ?? '',
       artist: json['artist']?.toString() ?? '',
+      album: json['album']?.toString() ?? '',
+      artUrl: json['art_url']?.toString() ?? '',
+      lengthMs: (json['length_ms'] as num?)?.toInt() ?? 0,
+      positionMs: (json['position_ms'] as num?)?.toInt() ?? 0,
+      shuffle: json['shuffle'] as bool?,
+      loopStatus: json['loop_status']?.toString(),
+    );
+  }
+
+  MediaPlayerState copyWith({
+    String? status,
+    bool? shuffle,
+    String? loopStatus,
+  }) {
+    return MediaPlayerState(
+      available: available,
+      busName: busName,
+      identity: identity,
+      status: status ?? this.status,
+      title: title,
+      artist: artist,
+      album: album,
+      artUrl: artUrl,
+      lengthMs: lengthMs,
+      positionMs: positionMs,
+      shuffle: shuffle ?? this.shuffle,
+      loopStatus: loopStatus ?? this.loopStatus,
     );
   }
 }
@@ -103,6 +148,7 @@ class AudioState {
     required this.defaultSink,
     required this.sinks,
     required this.player,
+    this.players = const [],
   });
 
   final int volume;
@@ -111,9 +157,11 @@ class AudioState {
   final String defaultSink;
   final List<AudioSink> sinks;
   final MediaPlayerState player;
+  final List<MediaPlayerState> players;
 
   factory AudioState.fromJson(Map<String, dynamic> json) {
     final rawSinks = json['sinks'] as List<dynamic>? ?? const [];
+    final rawPlayers = json['players'] as List<dynamic>? ?? const [];
     return AudioState(
       volume: (json['volume'] as num?)?.toInt() ?? 0,
       muted: json['muted'] == true,
@@ -126,6 +174,10 @@ class AudioState {
       player: MediaPlayerState.fromJson(
         json['player'] as Map<String, dynamic>? ?? const {},
       ),
+      players: rawPlayers
+          .whereType<Map<String, dynamic>>()
+          .map(MediaPlayerState.fromJson)
+          .toList(),
     );
   }
 
@@ -136,6 +188,7 @@ class AudioState {
     String? defaultSink,
     List<AudioSink>? sinks,
     MediaPlayerState? player,
+    List<MediaPlayerState>? players,
   }) {
     return AudioState(
       volume: volume ?? this.volume,
@@ -144,6 +197,7 @@ class AudioState {
       defaultSink: defaultSink ?? this.defaultSink,
       sinks: sinks ?? this.sinks,
       player: player ?? this.player,
+      players: players ?? this.players,
     );
   }
 }
@@ -429,10 +483,34 @@ class SystemState {
         ],
         player: MediaPlayerState(
           available: true,
+          busName: 'org.mpris.MediaPlayer2.spotify',
+          identity: 'Spotify',
           status: 'Playing',
           title: 'Starfall Sanctum',
           artist: 'Omarchy Synth',
+          album: 'Arcane Sessions',
+          artUrl: '',
+          lengthMs: 215000,
+          positionMs: 42000,
+          shuffle: false,
+          loopStatus: 'None',
         ),
+        players: [
+          MediaPlayerState(
+            available: true,
+            busName: 'org.mpris.MediaPlayer2.spotify',
+            identity: 'Spotify',
+            status: 'Playing',
+            title: 'Starfall Sanctum',
+            artist: 'Omarchy Synth',
+            album: 'Arcane Sessions',
+            artUrl: '',
+            lengthMs: 215000,
+            positionMs: 42000,
+            shuffle: false,
+            loopStatus: 'None',
+          ),
+        ],
       ),
       brightness: BrightnessInfo(available: true, percent: 75),
       hyprland: HyprlandState(
