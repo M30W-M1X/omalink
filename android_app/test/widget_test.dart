@@ -79,5 +79,21 @@ void main() {
     expect(find.text('Demo Familiar Shell'), findsOneWidget);
     expect(find.text('CTRL'), findsOneWidget);
     expect(find.text('Pair Live'), findsOneWidget);
+
+    // Return to Wizard tab, scroll back to header, and open Remote Desktop screen
+    await tester.tap(find.text('Wizard'));
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.drag(find.byType(CustomScrollView).first, const Offset(0, 600));
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.tap(find.byTooltip('Remote Desktop'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('Omarchy Remote Desktop'), findsOneWidget);
+    expect(find.text('Demo Familiar Desktop'), findsOneWidget);
+    expect(find.text('R-Click'), findsOneWidget);
+    await tester.tap(find.byTooltip('Back'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('Omarchy Wizard'), findsOneWidget);
   });
 }

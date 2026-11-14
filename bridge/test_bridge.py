@@ -16,6 +16,7 @@ from urllib import error, request
 from urllib.parse import quote
 
 import omarchy_control
+import omarchy_desktop
 import omarchy_files
 from omarchy_wizard_bridge import (
     OmarchyWizardBridge,
@@ -425,6 +426,83 @@ class BridgeTests(unittest.TestCase):
                 self.assertIn("PTY_OK_42", combined)
                 self.assertIn(str(Path(tmpdir).resolve()), combined)
                 self.assertEqual(exit_code, 0)
+
+                ws_writer.close()
+                await ws_writer.wait_closed()
+        finally:
+            await bridge.stop()
+
+    def test_desktop_coordinate_mapping_and_ws_stream(self) -> None:
+        monitors = [
+            {"name": "DP-1", "width": 5120, "height": 1440, "x": 0, "y": 0, "focused": True},
+            {"name": "HDMI-A-1", "width": 1920, "height": 1080, "x": 5120, "y": 0, "focused": False},
+        ]
+        ax, ay, ew, eh = omarchy_desktop.map_normalized_point(0.5, 0.5, monitors, "DP-1")
+        self.assertEqual((ew, eh), (7040, 1440))
+        self.assertAlmostEqual(ax, 2560, delta=1)
+        self.assertAlmostEqual(ay, 720, delta=1)
+
+        bx, by, _, _ = omarchy_desktop.map_normalized_point(0.0, 1.0, monitors, "HDMI-A-1")
+        self.assertEqual(bx, 5120)
+        self.assertAlmostEqual(by, 1079, delta=1)
+
+        asyncio.run(self._run_desktop_ws_test())
+
+    async def _run_desktop_ws_test(self) -> None:
+        bridge = OmarchyWizardBridge(host="127.0.0.1", port=0, token="desk-token")
+        await bridge.start()
+        port = bridge.bound_port
+        fake_jpeg = b"\xff\xd8\xff\xe0FAKEJPEG"
+        try:
+            with (
+                mock.patch.object(
+                    omarchy_desktop,
+                    "read_monitors_and_workspaces_sync",
+                    return_value={
+                        "monitors": [{"name": "DP-1", "width": 5120, "height": 1440, "x": 0, "y": 0, "focused": True}],
+                        "workspaces": [{"id": 1, "name": "1", "windows": 2}],
+                    },
+                ),
+                mock.patch.object(
+                    omarchy_desktop.WaylandVirtualPointer,
+                    "connect",
+                    return_value=False,
+                ),
+                mock.patch.object(
+                    omarchy_desktop,
+                    "capture_frame_jpeg",
+                    new=mock.AsyncMock(return_value=fake_jpeg),
+                ),
+            ):
+                ws_reader, ws_writer = await asyncio.open_connection("127.0.0.1", port)
+                ws_key = base64.b64encode(os.urandom(16)).decode("ascii")
+                req = (
+                    f"GET /ws/desktop?scale=0.35&quality=60&fps=4&token=desk-token HTTP/1.1\r\n"
+                    f"Host: 127.0.0.1:{port}\r\n"
+                    "Upgrade: websocket\r\n"
+                    "Connection: Upgrade\r\n"
+                    f"Sec-WebSocket-Key: {ws_key}\r\n"
+                    "Sec-WebSocket-Version: 13\r\n\r\n"
+                )
+                ws_writer.write(req.encode("ascii"))
+                await ws_writer.drain()
+                handshake = await ws_reader.readuntil(b"\r\n\r\n")
+                self.assertIn(b"101 Switching Protocols", handshake)
+
+                op1, ready_raw = await asyncio.wait_for(_ws_read_frame(ws_reader), timeout=5.0)
+                self.assertEqual(op1, 0x1)
+                ready = json.loads(ready_raw.decode("utf-8"))
+                self.assertEqual(ready["type"], "ready")
+                self.assertEqual(ready["monitor"]["name"], "DP-1")
+
+                op2, bin_frame = await asyncio.wait_for(_ws_read_frame(ws_reader), timeout=5.0)
+                self.assertEqual(op2, 0x2)
+                self.assertEqual(bin_frame, fake_jpeg)
+
+                await _ws_send_masked_text(ws_writer, json.dumps({"type": "ping"}))
+                op3, pong_raw = await asyncio.wait_for(_ws_read_frame(ws_reader), timeout=5.0)
+                self.assertEqual(op3, 0x1)
+                self.assertEqual(json.loads(pong_raw.decode("utf-8"))["type"], "pong")
 
                 ws_writer.close()
                 await ws_writer.wait_closed()

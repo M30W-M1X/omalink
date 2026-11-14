@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../services/bridge_client.dart';
 import '../theme/wizard_theme.dart';
+import 'desktop_screen.dart';
 
 class ControlPlaneScreen extends StatefulWidget {
   const ControlPlaneScreen({
@@ -115,6 +116,24 @@ class _ControlPlaneScreenState extends State<ControlPlaneScreen> {
                     ],
                   ),
                 ),
+                FilledButton.tonalIcon(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => DesktopScreen(client: client),
+                      ),
+                    );
+                  },
+                  style: FilledButton.styleFrom(
+                    backgroundColor: WizardColors.surfaceElevated,
+                    foregroundColor: WizardColors.cyanArcane,
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    minimumSize: Size.zero,
+                  ),
+                  icon: const Icon(Icons.desktop_windows_outlined, size: 16),
+                  label: const Text('Desktop', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                ),
+                const SizedBox(width: 4),
                 IconButton(
                   tooltip: 'Refresh OS State',
                   onPressed: client.systemLoading ? null : client.refreshSystemState,

@@ -32,6 +32,7 @@ from urllib.parse import parse_qs, urlparse
 import uuid
 
 import omarchy_control
+import omarchy_desktop
 import omarchy_files
 import omarchy_pty
 
@@ -642,16 +643,18 @@ class OmarchyWizardBridge:
                 k, v = line.split(":", 1)
                 headers[k.strip().lower()] = v.strip()
 
-        # WebSocket upgrades on /ws and /ws/terminal
+        # WebSocket upgrades on /ws, /ws/terminal, and /ws/desktop
         if method == "GET" and headers.get("upgrade", "").lower() == "websocket":
-            if path in {"/ws", "/ws/terminal"}:
+            if path in {"/ws", "/ws/terminal", "/ws/desktop"}:
                 if not self.is_authorized(headers, query):
                     await self._send_http_json(writer, HTTPStatus.UNAUTHORIZED, {"error": "Unauthorized"})
                     return
                 if path == "/ws":
                     await self._handle_websocket(reader, writer, headers)
-                else:
+                elif path == "/ws/terminal":
                     await self._handle_terminal_websocket(reader, writer, headers, query)
+                else:
+                    await self._handle_desktop_websocket(reader, writer, headers, query)
                 return
 
         # Read optional HTTP body
@@ -878,6 +881,18 @@ class OmarchyWizardBridge:
         if client is None:
             return
         await omarchy_pty.handle_terminal_websocket(client, query)
+
+    async def _handle_desktop_websocket(
+        self,
+        reader: asyncio.StreamReader,
+        writer: asyncio.StreamWriter,
+        headers: dict[str, str],
+        query: dict[str, list[str]],
+    ) -> None:
+        client = await self._upgrade_websocket(reader, writer, headers)
+        if client is None:
+            return
+        await omarchy_desktop.handle_desktop_websocket(client, query)
 
     async def _handle_websocket(
         self,
