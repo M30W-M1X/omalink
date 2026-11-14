@@ -52,15 +52,18 @@ async def _ws_read_frame(reader: asyncio.StreamReader) -> tuple[int, bytes]:
 class BridgeTests(unittest.TestCase):
     def test_command_builders(self) -> None:
         agy_cmd = build_agent_command("agy", "Fix bug", mode="plan", effort="high", conversation_id="abc")
-        self.assertEqual(agy_cmd[:4], ["agy", "-p", "--output-format", "stream-json"])
+        self.assertEqual(agy_cmd[:3], ["agy", "--output-format", "stream-json"])
         self.assertIn("--mode", agy_cmd)
         self.assertIn("plan", agy_cmd)
         self.assertIn("--conversation", agy_cmd)
-        self.assertEqual(agy_cmd[-1], "Fix bug")
+        self.assertEqual(agy_cmd[-2:], ["-p", "Fix bug"])
 
         claude_cmd = build_agent_command("claude", "Hello", mode="accept-edits")
         self.assertIn("acceptEdits", claude_cmd)
         self.assertEqual(claude_cmd[-1], "Hello")
+
+        kimi_cmd = build_agent_command("kimi", "Hello")
+        self.assertEqual(kimi_cmd[-2:], ["-p", "Hello"])
 
     def test_parse_agent_output_line(self) -> None:
         ev = parse_agent_output_line(
@@ -69,6 +72,20 @@ class BridgeTests(unittest.TestCase):
         self.assertEqual(ev["kind"], "assistant")
         self.assertEqual(ev["conversation_id"], "c-123")
         self.assertEqual(ev["text"], "Casting spell")
+
+        agy_delta = parse_agent_output_line(
+            '{"event":"step_update","step_update":{"conversation_id":"agy-1","step_type":"agent_response","text_delta":"Hello wizard"}}'
+        )
+        self.assertEqual(agy_delta["kind"], "step_update")
+        self.assertEqual(agy_delta["conversation_id"], "agy-1")
+        self.assertEqual(agy_delta["text"], "Hello wizard")
+
+        agy_result = parse_agent_output_line(
+            '{"event":"result","result":{"conversation_id":"agy-1","status":"SUCCESS","response":"Done casting"}}'
+        )
+        self.assertEqual(agy_result["kind"], "result")
+        self.assertEqual(agy_result["conversation_id"], "agy-1")
+        self.assertEqual(agy_result["text"], "Done casting")
 
         plain = parse_agent_output_line("plain log line", stream="stderr")
         self.assertEqual(plain["kind"], "stderr")

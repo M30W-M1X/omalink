@@ -153,7 +153,6 @@ def build_agent_command(
     if agent == "agy":
         cmd = [
             "agy",
-            "-p",
             "--output-format",
             "stream-json",
             "--dangerously-skip-permissions",
@@ -164,7 +163,7 @@ def build_agent_command(
             cmd.extend(["--effort", effort])
         if conversation_id:
             cmd.extend(["--conversation", conversation_id])
-        cmd.append(prompt)
+        cmd.extend(["-p", prompt])
         return cmd
 
     if agent == "claude":
@@ -184,7 +183,7 @@ def build_agent_command(
         return ["codex", "exec", "--json", prompt]
 
     if agent == "kimi":
-        return ["kimi", "--print", "--prompt", prompt]
+        return ["kimi", "--yolo", "--output-format", "stream-json", "-p", prompt]
 
     if agent == "opencode":
         return ["opencode", "run", prompt]
@@ -217,6 +216,12 @@ def parse_agent_output_line(line: str, stream: str = "stdout") -> dict[str, Any]
                     base["conversation_id"] = str(payload["conversation_id"])
                 elif "session_id" in payload and payload["session_id"]:
                     base["conversation_id"] = str(payload["session_id"])
+                else:
+                    for nested_key in ("step_update", "result"):
+                        nested_obj = payload.get(nested_key)
+                        if isinstance(nested_obj, dict) and nested_obj.get("conversation_id"):
+                            base["conversation_id"] = str(nested_obj["conversation_id"])
+                            break
 
                 # Extract readable text across common stream-json shapes
                 text = _extract_readable_text(payload)
@@ -229,12 +234,32 @@ def parse_agent_output_line(line: str, stream: str = "stdout") -> dict[str, Any]
 
 
 def _extract_readable_text(payload: dict[str, Any]) -> str:
+    step = payload.get("step_update")
+    if isinstance(step, dict):
+        delta = step.get("text_delta")
+        if isinstance(delta, str) and delta.strip():
+            return delta.strip()
+        tool_name = step.get("tool_name")
+        if tool_name:
+            state = str(step.get("state") or "").lower()
+            prefix = "Tool done" if state == "done" else "Using tool"
+            return f"{prefix}: {tool_name}"
+        step_type = step.get("step_type")
+        state = step.get("state")
+        if step_type and state:
+            return f"{step_type} ({str(state).lower()})"
+
+    init_obj = payload.get("init")
+    if isinstance(init_obj, dict):
+        cwd = init_obj.get("cwd")
+        return f"Session initialized in {cwd}" if cwd else "Session initialized"
+
     for key in ("result", "message", "text", "content", "delta", "error"):
         val = payload.get(key)
         if isinstance(val, str) and val.strip():
             return val.strip()
         if isinstance(val, dict):
-            nested = val.get("content") or val.get("text")
+            nested = val.get("response") or val.get("content") or val.get("text") or val.get("message")
             if isinstance(nested, str) and nested.strip():
                 return nested.strip()
             if isinstance(nested, list):
