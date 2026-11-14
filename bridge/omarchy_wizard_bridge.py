@@ -47,6 +47,11 @@ def get_config_dir() -> Path:
     return base / "omarchy-wizard"
 
 
+def generate_pairing_token(digits: int = 5) -> str:
+    """Return a zero-padded cryptographically random numeric pairing PIN."""
+    return f"{secrets.randbelow(10 ** digits):0{digits}d}"
+
+
 def load_or_create_token(explicit_token: str | None = None) -> str:
     if explicit_token:
         return explicit_token.strip()
@@ -60,7 +65,7 @@ def load_or_create_token(explicit_token: str | None = None) -> str:
         if saved:
             return saved
     cfg_dir.mkdir(parents=True, exist_ok=True)
-    token = secrets.token_urlsafe(24)
+    token = generate_pairing_token()
     token_file.write_text(token + "\n", encoding="utf-8")
     os.chmod(token_file, 0o600)
     return token

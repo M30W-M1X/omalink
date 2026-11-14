@@ -8,12 +8,17 @@ import base64
 import json
 import os
 import struct
+import tempfile
 import unittest
+from pathlib import Path
+from unittest import mock
 from urllib import error, request
 
 from omarchy_wizard_bridge import (
     OmarchyWizardBridge,
     build_agent_command,
+    generate_pairing_token,
+    load_or_create_token,
     parse_agent_output_line,
 )
 
@@ -152,6 +157,21 @@ class BridgeTests(unittest.TestCase):
             await ws_writer.wait_closed()
         finally:
             await bridge.stop()
+
+    def test_generated_token_is_five_digits(self) -> None:
+        token = generate_pairing_token()
+        self.assertEqual(len(token), 5)
+        self.assertTrue(token.isdigit())
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with mock.patch.dict(os.environ, {"XDG_CONFIG_HOME": tmpdir}, clear=False):
+                os.environ.pop("OMARCHY_WIZARD_TOKEN", None)
+                created = load_or_create_token()
+                self.assertEqual(len(created), 5)
+                self.assertTrue(created.isdigit())
+                token_path = Path(tmpdir) / "omarchy-wizard" / "token"
+                self.assertEqual(token_path.read_text(encoding="utf-8").strip(), created)
+                self.assertEqual(load_or_create_token(), created)
 
 
 if __name__ == "__main__":
