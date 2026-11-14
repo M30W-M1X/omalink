@@ -31,6 +31,9 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse
 import uuid
 
+import omarchy_control
+import omarchy_files
+
 WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 DEFAULT_PORT = 7842
 MAX_LOG_EVENTS = 500
@@ -662,10 +665,15 @@ class OmarchyWizardBridge:
             await self._send_http_json(writer, HTTPStatus.UNAUTHORIZED, {"error": "Unauthorized"})
             return
 
-        await self._route_http(writer, method, path, body_bytes)
+        await self._route_http(writer, method, path, query, body_bytes)
 
     async def _route_http(
-        self, writer: asyncio.StreamWriter, method: str, path: str, body_bytes: bytes
+        self,
+        writer: asyncio.StreamWriter,
+        method: str,
+        path: str,
+        query: dict[str, list[str]],
+        body_bytes: bytes,
     ) -> None:
         body: dict[str, Any] = {}
         if body_bytes:
@@ -737,6 +745,96 @@ class OmarchyWizardBridge:
             agent_file.write_text(agent + "\n", encoding="utf-8")
             await self.broadcast("agent.default_changed", {"default_agent": agent})
             await self._send_http_json(writer, HTTPStatus.OK, {"ok": True, "default_agent": agent})
+            return
+
+        if method == "GET" and path == "/api/system/state":
+            state = await omarchy_control.read_system_state()
+            await self._send_http_json(writer, HTTPStatus.OK, state)
+            return
+
+        if method == "POST" and path == "/api/system/action":
+            action = str(body.get("action", "")).strip()
+            params = body.get("params") if isinstance(body.get("params"), dict) else {}
+            if not action:
+                await self._send_http_json(
+                    writer, HTTPStatus.BAD_REQUEST, {"error": "Missing 'action'"}
+                )
+                return
+            result = await omarchy_control.execute_control_action(action, params)
+            status_code = HTTPStatus.OK if result.get("ok") else HTTPStatus.BAD_REQUEST
+            if result.get("ok"):
+                await self.broadcast("system.action", {"action": action, "message": result.get("message", "")})
+            await self._send_http_json(writer, status_code, result)
+            return
+
+        if method == "GET" and path == "/api/files/list":
+            raw_path = (query.get("path") or [None])[0]
+            show_hidden = ((query.get("hidden") or ["0"])[0]).lower() in {"1", "true", "yes"}
+            try:
+                listing = await omarchy_files.list_directory(raw_path, show_hidden=show_hidden)
+                await self._send_http_json(writer, HTTPStatus.OK, listing)
+            except FileNotFoundError as exc:
+                await self._send_http_json(writer, HTTPStatus.NOT_FOUND, {"error": str(exc)})
+            except PermissionError as exc:
+                await self._send_http_json(writer, HTTPStatus.FORBIDDEN, {"error": str(exc)})
+            return
+
+        if method == "GET" and path == "/api/files/read":
+            raw_path = (query.get("path") or [""])[0]
+            if not raw_path:
+                await self._send_http_json(writer, HTTPStatus.BAD_REQUEST, {"error": "Missing 'path'"})
+                return
+            try:
+                preview = await omarchy_files.read_file_preview(raw_path)
+                await self._send_http_json(writer, HTTPStatus.OK, preview)
+            except FileNotFoundError as exc:
+                await self._send_http_json(writer, HTTPStatus.NOT_FOUND, {"error": str(exc)})
+            except PermissionError as exc:
+                await self._send_http_json(writer, HTTPStatus.FORBIDDEN, {"error": str(exc)})
+            return
+
+        if method == "POST" and path == "/api/files/mkdir":
+            parent_path = str(body.get("parent", "")).strip()
+            name = str(body.get("name", "")).strip()
+            try:
+                res = await omarchy_files.create_directory(parent_path, name)
+                await self._send_http_json(writer, HTTPStatus.CREATED, res)
+            except FileNotFoundError as exc:
+                await self._send_http_json(writer, HTTPStatus.NOT_FOUND, {"error": str(exc)})
+            except (ValueError, FileExistsError, PermissionError) as exc:
+                await self._send_http_json(writer, HTTPStatus.BAD_REQUEST, {"error": str(exc)})
+            return
+
+        if method == "POST" and path == "/api/files/rename":
+            target_path = str(body.get("path", "")).strip()
+            new_name = str(body.get("new_name", "")).strip()
+            try:
+                res = await omarchy_files.rename_entry(target_path, new_name)
+                await self._send_http_json(writer, HTTPStatus.OK, res)
+            except FileNotFoundError as exc:
+                await self._send_http_json(writer, HTTPStatus.NOT_FOUND, {"error": str(exc)})
+            except (ValueError, FileExistsError, PermissionError) as exc:
+                await self._send_http_json(writer, HTTPStatus.BAD_REQUEST, {"error": str(exc)})
+            return
+
+        if method == "POST" and path == "/api/files/open":
+            target_path = str(body.get("path", "")).strip()
+            try:
+                res = await omarchy_files.open_on_desktop(target_path)
+                await self._send_http_json(writer, HTTPStatus.OK, res)
+            except FileNotFoundError as exc:
+                await self._send_http_json(writer, HTTPStatus.NOT_FOUND, {"error": str(exc)})
+            return
+
+        if method == "POST" and path == "/api/files/trash":
+            target_path = str(body.get("path", "")).strip()
+            try:
+                res = await omarchy_files.trash_entry(target_path)
+                await self._send_http_json(writer, HTTPStatus.OK, res)
+            except FileNotFoundError as exc:
+                await self._send_http_json(writer, HTTPStatus.NOT_FOUND, {"error": str(exc)})
+            except (ValueError, RuntimeError, PermissionError) as exc:
+                await self._send_http_json(writer, HTTPStatus.BAD_REQUEST, {"error": str(exc)})
             return
 
         await self._send_http_json(writer, HTTPStatus.NOT_FOUND, {"error": "Not found"})

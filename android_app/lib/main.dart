@@ -1,5 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 
+import 'screens/control_plane_screen.dart';
+import 'screens/file_explorer_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/spellbook_screen.dart';
 import 'screens/wizard_home_screen.dart';
@@ -51,7 +53,12 @@ class _OmarchyWizardAppState extends State<OmarchyWizardApp> {
               children: [
                 WizardHomeScreen(
                   client: widget.client,
-                  onOpenSettings: () => setState(() => _tabIndex = 2),
+                  onOpenSettings: () => setState(() => _tabIndex = 4),
+                ),
+                ControlPlaneScreen(client: widget.client),
+                FileExplorerScreen(
+                  client: widget.client,
+                  onCastWizardInPath: () => setState(() => _tabIndex = 0),
                 ),
                 SpellbookScreen(
                   client: widget.client,
@@ -70,13 +77,23 @@ class _OmarchyWizardAppState extends State<OmarchyWizardApp> {
                   label: 'Wizard',
                 ),
                 NavigationDestination(
-                  icon: Icon(Icons.menu_book_outlined),
-                  selectedIcon: Icon(Icons.menu_book),
-                  label: 'Spellbook',
-                ),
-                NavigationDestination(
                   icon: Icon(Icons.tune_outlined),
                   selectedIcon: Icon(Icons.tune),
+                  label: 'Control',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.folder_outlined),
+                  selectedIcon: Icon(Icons.folder),
+                  label: 'Files',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.menu_book_outlined),
+                  selectedIcon: Icon(Icons.menu_book),
+                  label: 'Spells',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.settings_outlined),
+                  selectedIcon: Icon(Icons.settings),
                   label: 'Sanctum',
                 ),
               ],

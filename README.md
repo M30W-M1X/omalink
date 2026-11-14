@@ -9,8 +9,9 @@ A **Flutter Android app** + lightweight **Omarchy Bridge server** to remotely co
   - **Notifications** (`lib/services/notification_service.dart`): Uses `flutter_local_notifications` with a high-importance Android notification channel (`omarchy_wizard_tasks`) to alert you whenever a task finishes or fails.
   - **Demo Familiar Mode**: Built-in simulation mode so you can preview animations, spell logs, and test notifications before pairing with your Omarchy machine.
 - `bridge/` — Pure Python 3 standard-library HTTP + WebSocket bridge (`omarchy_wizard_bridge.py`)
-  - Launches and streams `agy -p --output-format stream-json`, `claude`, `codex`, `kimi`, or `opencode`.
-  - Reads/updates Omarchy's default agent (`omarchy-default-agent` / `~/.config/omarchy/defaults/agent`).
+  - Launches and streams `agy`, `claude`, `codex`, `kimi`, or `opencode` (`-p` non-interactive streaming + session resumption).
+  - **OS Control Plane** (`omarchy_control.py`): Live machine vitals, PipeWire audio volume/mute/sink switching, media playback, display brightness, Omarchy toggles (Nightlight, Stay Awake, Top Bar, Animations, Screensaver, DND, Bluetooth), Hyprland workspaces/windows, Omarchy theme switcher, desktop app launchers, power controls, and Omarchy Passwordless Sudo management (`omarchy-sudo-passwordless`).
+  - **Remote File Explorer** (`omarchy_files.py`): Browse host directories, preview UTF-8 files, create folders, rename, move to Trash (`gio trash`), open on desktop (`xdg-open`), or hand paths straight to an AI agent.
   - Broadcasts live `task.started`, `task.event`, `task.completed`, `task.failed`, and `task.cancelled` WebSocket events.
 - `omarchy-plugin/` — Omarchy top bar status badge (`wizard.panel`), KDE Connect style
   - Shows bridge status, active tasks, and a corner status dot in the top bar; click to inspect bridge URL, connected phones, recent tasks, or toggle the `omarchy-wizard-bridge` service.

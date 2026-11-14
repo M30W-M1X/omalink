@@ -59,6 +59,10 @@ class _WizardHomeScreenState extends State<WizardHomeScreen> {
   Widget build(BuildContext context) {
     final client = widget.client;
     final activeTask = client.activeOrSelectedTask;
+    final draft = client.consumePendingPromptDraft();
+    if (draft != null && _promptController.text.isEmpty) {
+      _promptController.text = draft;
+    }
 
     return SafeArea(
       child: CustomScrollView(
@@ -169,7 +173,10 @@ class _WizardHomeScreenState extends State<WizardHomeScreen> {
 
   Widget _buildSpellControlsCard(BridgeClient client) {
     final agents = client.hostStatus.availableAgents;
-    final workspaces = client.hostStatus.workspaces;
+    final baseWorkspaces = client.hostStatus.workspaces;
+    final workspaces = baseWorkspaces.contains(client.selectedWorkspace)
+        ? baseWorkspaces
+        : [client.selectedWorkspace, ...baseWorkspaces];
 
     return Card(
       child: Padding(

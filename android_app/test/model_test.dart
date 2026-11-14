@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:omarchy_wizard/models/agent_task.dart';
+import 'package:omarchy_wizard/models/system_control.dart';
 import 'package:omarchy_wizard/models/wizard_mood.dart';
 
 void main() {
@@ -42,5 +43,82 @@ void main() {
       expect(mood.badgeLabel, isNotEmpty);
       expect(mood.defaultQuip, isNotEmpty);
     }
+  });
+
+  test('SystemState and DirectoryListing parse bridge control payloads', () {
+    final state = SystemState.fromJson({
+      'hostname': 'kitsune',
+      'os_version': '4.5.0-3',
+      'uptime_seconds': 3600,
+      'cpu_percent': 18.0,
+      'load_avg': '0.35',
+      'memory': {'used_gb': 12.0, 'total_gb': 64.0, 'percent': 18.8},
+      'battery': {'present': false, 'percent': 0, 'status': 'none'},
+      'audio': {
+        'volume': 35,
+        'muted': false,
+        'mic_muted': true,
+        'default_sink': 'usb-1',
+        'sinks': [
+          {'id': '59', 'name': 'usb-1', 'description': 'Speakers', 'active': true}
+        ],
+        'player': {'available': false, 'status': 'Stopped', 'title': '', 'artist': ''},
+      },
+      'brightness': {'available': false, 'percent': 0},
+      'hyprland': {
+        'workspaces': [
+          {'id': 2, 'name': '2', 'windows': 3, 'active': true}
+        ],
+        'active_window': {'title': 'Alacritty', 'class': 'Alacritty', 'address': '0x2'},
+      },
+      'toggles': {
+        'nightlight': true,
+        'stay_awake': false,
+        'bar_hidden': false,
+        'screensaver_off': false,
+        'animations_off': false,
+      },
+      'theme': {
+        'current': 'Everforest',
+        'themes': ['Everforest', 'Catppuccin'],
+      },
+      'security': {
+        'passwordless_sudo': true,
+        'bluetooth_powered': true,
+        'tailscale_active': false,
+      },
+    });
+
+    expect(state.hostname, 'kitsune');
+    expect(state.audio.volume, 35);
+    expect(state.audio.micMuted, isTrue);
+    expect(state.audio.sinks.first.displayLabel, 'Speakers');
+    expect(state.toggles.nightlight, isTrue);
+    expect(state.theme.current, 'Everforest');
+    expect(state.security.passwordlessSudo, isTrue);
+
+    final dir = DirectoryListing.fromJson({
+      'path': '/home/jgillman/Projects',
+      'parent': '/home/jgillman',
+      'show_hidden': false,
+      'truncated': false,
+      'bookmarks': [
+        {'label': 'Home', 'path': '/home/jgillman'}
+      ],
+      'entries': [
+        {
+          'name': 'omarchy_wizard',
+          'path': '/home/jgillman/Projects/omarchy_wizard',
+          'is_dir': true,
+          'is_symlink': false,
+          'size': 0,
+          'modified': '2026-11-13T19:00:00Z',
+          'extension': '',
+        }
+      ],
+    });
+    expect(dir.entries.length, 1);
+    expect(dir.entries.first.isDir, isTrue);
+    expect(dir.bookmarks.first.label, 'Home');
   });
 }

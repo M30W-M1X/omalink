@@ -13,7 +13,10 @@ import unittest
 from pathlib import Path
 from unittest import mock
 from urllib import error, request
+from urllib.parse import quote
 
+import omarchy_control
+import omarchy_files
 from omarchy_wizard_bridge import (
     OmarchyWizardBridge,
     build_agent_command,
@@ -189,6 +192,98 @@ class BridgeTests(unittest.TestCase):
                 token_path = Path(tmpdir) / "omarchy-wizard" / "token"
                 self.assertEqual(token_path.read_text(encoding="utf-8").strip(), created)
                 self.assertEqual(load_or_create_token(), created)
+
+    def test_system_state_and_action_endpoints(self) -> None:
+        asyncio.run(self._run_control_and_files_test())
+
+    async def _run_control_and_files_test(self) -> None:
+        bridge = OmarchyWizardBridge(host="127.0.0.1", port=0, token="12345")
+        await bridge.start()
+        port = bridge.bound_port
+        try:
+            with mock.patch.object(
+                omarchy_control,
+                "read_system_state_sync",
+                return_value={
+                    "hostname": "kitsune",
+                    "os_version": "4.5.0-3",
+                    "uptime_seconds": 120,
+                    "cpu_percent": 12.0,
+                    "load_avg": "0.42",
+                    "memory": {"used_gb": 8.0, "total_gb": 32.0, "percent": 25.0},
+                    "battery": {"present": False, "percent": 0, "status": "none"},
+                    "audio": {"volume": 40, "muted": False, "mic_muted": False, "default_sink": "usb", "sinks": [], "player": {"available": False, "status": "Stopped", "title": "", "artist": ""}},
+                    "brightness": {"available": False, "percent": 0},
+                    "hyprland": {"workspaces": [], "active_window": {"title": "", "class": "", "address": ""}},
+                    "toggles": {"nightlight": False, "stay_awake": False, "bar_hidden": False, "screensaver_off": False, "animations_off": False},
+                    "theme": {"current": "Everforest", "themes": ["Everforest", "Catppuccin"]},
+                    "security": {"passwordless_sudo": False, "bluetooth_powered": True, "tailscale_active": False},
+                },
+            ):
+                code, state = await asyncio.to_thread(
+                    _http_json, f"http://127.0.0.1:{port}/api/system/state", "GET", "12345"
+                )
+                self.assertEqual(code, 200)
+                self.assertEqual(state["hostname"], "kitsune")
+                self.assertEqual(state["theme"]["current"], "Everforest")
+
+            # Unknown actions must fail cleanly with 400
+            code, err = await asyncio.to_thread(
+                _http_json,
+                f"http://127.0.0.1:{port}/api/system/action",
+                "POST",
+                "12345",
+                {"action": "rm.rf.everything"},
+            )
+            self.assertEqual(code, 400)
+            self.assertFalse(err["ok"])
+
+            # Remote file explorer roundtrip in isolated temp directory
+            with tempfile.TemporaryDirectory() as tmpdir:
+                sample = Path(tmpdir) / "notes.txt"
+                sample.write_text("arcane runes\nline 2\n", encoding="utf-8")
+
+                code, listing = await asyncio.to_thread(
+                    _http_json,
+                    f"http://127.0.0.1:{port}/api/files/list?path={quote(tmpdir)}",
+                    "GET",
+                    "12345",
+                )
+                self.assertEqual(code, 200)
+                self.assertEqual(len(listing["entries"]), 1)
+                self.assertEqual(listing["entries"][0]["name"], "notes.txt")
+
+                code, preview = await asyncio.to_thread(
+                    _http_json,
+                    f"http://127.0.0.1:{port}/api/files/read?path={quote(str(sample))}",
+                    "GET",
+                    "12345",
+                )
+                self.assertEqual(code, 200)
+                self.assertFalse(preview["is_binary"])
+                self.assertIn("arcane runes", preview["content"])
+
+                code, mk = await asyncio.to_thread(
+                    _http_json,
+                    f"http://127.0.0.1:{port}/api/files/mkdir",
+                    "POST",
+                    "12345",
+                    {"parent": tmpdir, "name": "spells"},
+                )
+                self.assertEqual(code, 201)
+                self.assertTrue(mk["entry"]["is_dir"])
+
+                code, ren = await asyncio.to_thread(
+                    _http_json,
+                    f"http://127.0.0.1:{port}/api/files/rename",
+                    "POST",
+                    "12345",
+                    {"path": str(sample), "new_name": "scroll.txt"},
+                )
+                self.assertEqual(code, 200)
+                self.assertEqual(ren["entry"]["name"], "scroll.txt")
+        finally:
+            await bridge.stop()
 
 
 if __name__ == "__main__":
