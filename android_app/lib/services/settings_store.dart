@@ -9,6 +9,8 @@ class WizardSettings {
     this.notifyOnComplete = true,
     this.defaultMode = 'auto',
     this.defaultEffort = 'high',
+    this.relayNotifications = true,
+    this.relayCalls = true,
   });
 
   final String host;
@@ -18,6 +20,8 @@ class WizardSettings {
   final bool notifyOnComplete;
   final String defaultMode;
   final String defaultEffort;
+  final bool relayNotifications;
+  final bool relayCalls;
 
   String get httpBaseUrl => 'http://$host:$port';
   String get wsUrl => 'ws://$host:$port/ws';
@@ -32,6 +36,8 @@ class WizardSettings {
     bool? notifyOnComplete,
     String? defaultMode,
     String? defaultEffort,
+    bool? relayNotifications,
+    bool? relayCalls,
   }) {
     return WizardSettings(
       host: host ?? this.host,
@@ -41,6 +47,8 @@ class WizardSettings {
       notifyOnComplete: notifyOnComplete ?? this.notifyOnComplete,
       defaultMode: defaultMode ?? this.defaultMode,
       defaultEffort: defaultEffort ?? this.defaultEffort,
+      relayNotifications: relayNotifications ?? this.relayNotifications,
+      relayCalls: relayCalls ?? this.relayCalls,
     );
   }
 }
@@ -53,6 +61,8 @@ class SettingsStore {
   static const _keyNotify = 'wizard_notify';
   static const _keyMode = 'wizard_mode';
   static const _keyEffort = 'wizard_effort';
+  static const _keyRelayNotif = 'wizard_relay_notifications';
+  static const _keyRelayCalls = 'wizard_relay_calls';
 
   Future<WizardSettings> load() async {
     final prefs = await SharedPreferences.getInstance();
@@ -64,6 +74,8 @@ class SettingsStore {
       notifyOnComplete: prefs.getBool(_keyNotify) ?? true,
       defaultMode: prefs.getString(_keyMode) ?? 'auto',
       defaultEffort: prefs.getString(_keyEffort) ?? 'high',
+      relayNotifications: prefs.getBool(_keyRelayNotif) ?? true,
+      relayCalls: prefs.getBool(_keyRelayCalls) ?? true,
     );
   }
 
@@ -76,5 +88,7 @@ class SettingsStore {
     await prefs.setBool(_keyNotify, settings.notifyOnComplete);
     await prefs.setString(_keyMode, settings.defaultMode);
     await prefs.setString(_keyEffort, settings.defaultEffort);
+    await prefs.setBool(_keyRelayNotif, settings.relayNotifications);
+    await prefs.setBool(_keyRelayCalls, settings.relayCalls);
   }
 }

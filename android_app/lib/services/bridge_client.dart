@@ -3,11 +3,13 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 
 import '../models/agent_task.dart';
 import '../models/system_control.dart';
 import '../models/wizard_mood.dart';
+import 'continuity_service.dart';
 import 'notification_service.dart';
 import 'settings_store.dart';
 
@@ -128,14 +130,70 @@ class BridgeClient extends ChangeNotifier {
   final Set<String> _notifiedTaskIds = <String>{};
   bool _disposed = false;
 
+  bool _notificationAccessEnabled = false;
+  bool get notificationAccessEnabled => _notificationAccessEnabled;
+
+  String _desktopClipboardPreview = '';
+  String get desktopClipboardPreview => _desktopClipboardPreview;
+
+  List<Map<String, dynamic>> _continuityApps = const [
+    {'id': 'browser', 'label': 'Chrome / Browser', 'available': true},
+    {'id': 'spotify', 'label': 'Spotify', 'available': true},
+    {'id': 'terminal', 'label': 'Terminal', 'available': true},
+    {'id': 'files', 'label': 'Files', 'available': true},
+  ];
+  List<Map<String, dynamic>> get continuityApps => List.unmodifiable(_continuityApps);
+
+  final List<Map<String, dynamic>> _continuityActivity = <Map<String, dynamic>>[];
+  List<Map<String, dynamic>> get continuityActivity => List.unmodifiable(_continuityActivity);
+
+  String? _continuityBanner;
+  String? get continuityBanner => _continuityBanner;
+
   Future<void> init() async {
     _settings = await _settingsStore.load();
     _selectedMode = _settings.defaultMode;
     _selectedEffort = _settings.defaultEffort;
+
+    _notificationAccessEnabled =
+        await ContinuityService.instance.isNotificationListenerEnabled();
+    ContinuityService.instance.startListening(
+      onShare: (share) {
+        unawaited(
+          handoffToOmarchy(
+            text: share.text,
+            subject: share.subject,
+            packageName: share.packageName,
+          ),
+        );
+      },
+      onRelayedNotification: (relayed) {
+        _continuityActivity.insert(0, {
+          ...relayed,
+          'ts': DateTime.now().toIso8601String(),
+        });
+        if (_continuityActivity.length > 25) {
+          _continuityActivity.removeLast();
+        }
+        notifyListeners();
+      },
+    );
+
     if (_settings.demoMode) {
       _activateDemoMode();
     } else {
       await connect();
+    }
+
+    final initialShare = await ContinuityService.instance.consumePendingShare();
+    if (initialShare != null) {
+      unawaited(
+        handoffToOmarchy(
+          text: initialShare.text,
+          subject: initialShare.subject,
+          packageName: initialShare.packageName,
+        ),
+      );
     }
   }
 
@@ -212,6 +270,18 @@ class BridgeClient extends ChangeNotifier {
     } else {
       await connect();
     }
+  }
+
+  Future<void> updateRelayPreferences({
+    bool? relayNotifications,
+    bool? relayCalls,
+  }) async {
+    _settings = _settings.copyWith(
+      relayNotifications: relayNotifications,
+      relayCalls: relayCalls,
+    );
+    await _settingsStore.save(_settings);
+    notifyListeners();
   }
 
   void _activateDemoMode() {
@@ -940,6 +1010,226 @@ class BridgeClient extends ChangeNotifier {
       notifyListeners();
       return false;
     }
+  }
+
+  Future<void> refreshNotificationAccessStatus() async {
+    _notificationAccessEnabled =
+        await ContinuityService.instance.isNotificationListenerEnabled();
+    notifyListeners();
+  }
+
+  Future<void> openNotificationAccessSettings() async {
+    await ContinuityService.instance.openNotificationListenerSettings();
+  }
+
+  Future<void> refreshContinuityState() async {
+    _notificationAccessEnabled =
+        await ContinuityService.instance.isNotificationListenerEnabled();
+    if (_settings.demoMode) {
+      if (_desktopClipboardPreview.isEmpty) {
+        _desktopClipboardPreview = 'https://wiki.archlinux.org/title/Hyprland';
+      }
+      notifyListeners();
+      return;
+    }
+    try {
+      final resp = await http
+          .get(Uri.parse('${_settings.httpBaseUrl}/api/continuity/state'), headers: _headers)
+          .timeout(const Duration(seconds: 5));
+      if (resp.statusCode == 200) {
+        final data = jsonDecode(resp.body) as Map<String, dynamic>;
+        final clip = data['clipboard'] as Map<String, dynamic>?;
+        if (clip != null) {
+          _desktopClipboardPreview = clip['text']?.toString() ?? '';
+        }
+        final apps = data['apps'] as List<dynamic>?;
+        if (apps != null && apps.isNotEmpty) {
+          _continuityApps = apps.cast<Map<String, dynamic>>();
+        }
+        final notifs = data['recent_notifications'] as List<dynamic>?;
+        if (notifs != null && notifs.isNotEmpty && _continuityActivity.isEmpty) {
+          _continuityActivity.addAll(notifs.cast<Map<String, dynamic>>());
+        }
+        notifyListeners();
+      }
+    } catch (_) {}
+  }
+
+  Future<bool> sendClipboardToOmarchy({String? explicitText, bool notify = true}) async {
+    var text = explicitText ?? '';
+    if (text.isEmpty) {
+      try {
+        final data = await Clipboard.getData(Clipboard.kTextPlain);
+        text = data?.text ?? '';
+      } catch (_) {}
+    }
+    if (text.trim().isEmpty) {
+      _continuityBanner = 'Phone clipboard is empty.';
+      notifyListeners();
+      return false;
+    }
+
+    if (_settings.demoMode) {
+      _desktopClipboardPreview = text;
+      _continuityBanner = 'Synced clipboard to Omarchy (demo)';
+      _recordContinuityActivity('clipboard', 'Clipboard Sent', text);
+      return true;
+    }
+
+    try {
+      final resp = await http
+          .post(
+            Uri.parse('${_settings.httpBaseUrl}/api/continuity/clipboard'),
+            headers: _headers,
+            body: jsonEncode({'text': text, 'notify': notify}),
+          )
+          .timeout(const Duration(seconds: 5));
+      if (resp.statusCode < 400) {
+        _desktopClipboardPreview = text;
+        _continuityBanner = 'Clipboard synced to Omarchy!';
+        _recordContinuityActivity('clipboard', 'Clipboard Sent', text);
+        return true;
+      }
+    } catch (_) {}
+    _continuityBanner = 'Failed to sync clipboard to Omarchy.';
+    notifyListeners();
+    return false;
+  }
+
+  Future<String?> pullClipboardFromOmarchy() async {
+    if (_settings.demoMode) {
+      final sample = _desktopClipboardPreview.isNotEmpty
+          ? _desktopClipboardPreview
+          : 'https://wiki.archlinux.org/title/Hyprland';
+      try {
+        await Clipboard.setData(ClipboardData(text: sample));
+      } catch (_) {}
+      _continuityBanner = 'Copied Omarchy clipboard to phone (demo)';
+      _recordContinuityActivity('clipboard', 'Clipboard Pulled', sample);
+      return sample;
+    }
+
+    try {
+      final resp = await http
+          .get(Uri.parse('${_settings.httpBaseUrl}/api/continuity/clipboard'), headers: _headers)
+          .timeout(const Duration(seconds: 5));
+      if (resp.statusCode == 200) {
+        final data = jsonDecode(resp.body) as Map<String, dynamic>;
+        final text = data['text']?.toString() ?? '';
+        _desktopClipboardPreview = text;
+        if (text.isNotEmpty) {
+          await Clipboard.setData(ClipboardData(text: text));
+          _continuityBanner = 'Pulled Omarchy clipboard to phone!';
+          _recordContinuityActivity('clipboard', 'Clipboard Pulled', text);
+        } else {
+          _continuityBanner = 'Omarchy clipboard is empty.';
+          notifyListeners();
+        }
+        return text;
+      }
+    } catch (_) {}
+    _continuityBanner = 'Failed to pull desktop clipboard.';
+    notifyListeners();
+    return null;
+  }
+
+  Future<bool> handoffToOmarchy({
+    String url = '',
+    String text = '',
+    String subject = '',
+    String app = '',
+    String packageName = '',
+  }) async {
+    if (_settings.demoMode) {
+      final target = url.isNotEmpty ? url : (app.isNotEmpty ? app : text);
+      _continuityBanner = '✨ Continued on Omarchy (demo): $target';
+      _recordContinuityActivity('handoff', 'Continue on Omarchy', target);
+      return true;
+    }
+
+    try {
+      final resp = await http
+          .post(
+            Uri.parse('${_settings.httpBaseUrl}/api/continuity/handoff'),
+            headers: _headers,
+            body: jsonEncode({
+              'url': url,
+              'text': text,
+              'subject': subject,
+              'app': app,
+              'package_name': packageName,
+            }),
+          )
+          .timeout(const Duration(seconds: 6));
+      final decoded = jsonDecode(resp.body) as Map<String, dynamic>;
+      if (resp.statusCode < 400 && decoded['ok'] == true) {
+        _continuityBanner = decoded['message']?.toString() ?? 'Continued on Omarchy!';
+        _recordContinuityActivity(
+          'handoff',
+          'Continue on Omarchy',
+          _continuityBanner!,
+        );
+        return true;
+      }
+      _continuityBanner = decoded['error']?.toString() ?? decoded['message']?.toString() ?? 'Handoff failed.';
+      notifyListeners();
+      return false;
+    } catch (err) {
+      _continuityBanner = 'Handoff error: $err';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> relayNotificationToOmarchy({
+    required String title,
+    String body = '',
+    String appName = 'Phone',
+    String category = 'notification',
+    String caller = '',
+  }) async {
+    if (_settings.demoMode) {
+      _continuityBanner = 'Sent $category alert to Omarchy (demo)';
+      _recordContinuityActivity(category, title, body);
+      return true;
+    }
+
+    try {
+      final resp = await http
+          .post(
+            Uri.parse('${_settings.httpBaseUrl}/api/continuity/notify'),
+            headers: _headers,
+            body: jsonEncode({
+              'title': title,
+              'body': body,
+              'app_name': appName,
+              'category': category,
+              'caller': caller,
+            }),
+          )
+          .timeout(const Duration(seconds: 5));
+      if (resp.statusCode < 400) {
+        _continuityBanner = 'Delivered $category alert to Omarchy!';
+        _recordContinuityActivity(category, title, body);
+        return true;
+      }
+    } catch (_) {}
+    _continuityBanner = 'Failed to deliver alert to Omarchy.';
+    notifyListeners();
+    return false;
+  }
+
+  void _recordContinuityActivity(String category, String title, String body) {
+    _continuityActivity.insert(0, {
+      'category': category,
+      'title': title,
+      'body': body,
+      'ts': DateTime.now().toIso8601String(),
+    });
+    if (_continuityActivity.length > 25) {
+      _continuityActivity.removeLast();
+    }
+    notifyListeners();
   }
 
   void _runDemoSpell(String prompt, {String? conversationId}) {

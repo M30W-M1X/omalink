@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../services/bridge_client.dart';
 import '../theme/wizard_theme.dart';
+import 'continuity_screen.dart';
 import 'desktop_screen.dart';
 
 class ControlPlaneScreen extends StatefulWidget {
@@ -115,6 +116,18 @@ class _ControlPlaneScreenState extends State<ControlPlaneScreen> {
                       ),
                     ],
                   ),
+                ),
+                IconButton(
+                  tooltip: 'Continuity & Phone Relay',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => ContinuityScreen(client: client),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.devices_rounded, color: WizardColors.emeraldSage),
                 ),
                 FilledButton.tonalIcon(
                   onPressed: () {

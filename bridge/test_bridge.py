@@ -15,6 +15,7 @@ from unittest import mock
 from urllib import error, request
 from urllib.parse import quote
 
+import omarchy_continuity
 import omarchy_control
 import omarchy_desktop
 import omarchy_files
@@ -506,6 +507,107 @@ class BridgeTests(unittest.TestCase):
 
                 ws_writer.close()
                 await ws_writer.wait_closed()
+        finally:
+            await bridge.stop()
+
+    def test_continuity_notify_clipboard_and_handoff(self) -> None:
+        self.assertEqual(
+            omarchy_continuity.extract_first_url("Check this article https://archlinux.org/packages/!"),
+            "https://archlinux.org/packages/",
+        )
+        self.assertEqual(
+            omarchy_continuity.resolve_app_key(package_name="com.android.chrome"),
+            "browser",
+        )
+        self.assertEqual(
+            omarchy_continuity.resolve_app_key(package_name="com.spotify.music"),
+            "spotify",
+        )
+        asyncio.run(self._run_continuity_http_test())
+
+    async def _run_continuity_http_test(self) -> None:
+        bridge = OmarchyWizardBridge(host="127.0.0.1", port=0, token="cont-token")
+        await bridge.start()
+        port = bridge.bound_port
+        try:
+            with (
+                mock.patch.object(omarchy_continuity.shutil, "which", return_value="/usr/bin/true"),
+                mock.patch.object(omarchy_continuity, "_spawn_detached", return_value=True) as mock_spawn,
+                mock.patch.object(
+                    omarchy_continuity,
+                    "set_clipboard_sync",
+                    return_value={"ok": True, "length": 11, "preview": "hello world", "message": "ok"},
+                ),
+                mock.patch.object(
+                    omarchy_continuity,
+                    "get_clipboard_sync",
+                    return_value={"ok": True, "text": "from-desktop", "empty": False},
+                ),
+            ):
+                # Phone notification / incoming call relay
+                code, notif_resp = await asyncio.to_thread(
+                    _http_json,
+                    f"http://127.0.0.1:{port}/api/continuity/notify",
+                    "POST",
+                    "cont-token",
+                    {
+                        "title": "Alice",
+                        "body": "Hey, are you free?",
+                        "app_name": "Messages",
+                        "category": "message",
+                    },
+                )
+                self.assertEqual(code, 200)
+                self.assertTrue(notif_resp["ok"])
+                self.assertEqual(notif_resp["entry"]["category"], "message")
+
+                code, call_resp = await asyncio.to_thread(
+                    _http_json,
+                    f"http://127.0.0.1:{port}/api/continuity/notify",
+                    "POST",
+                    "cont-token",
+                    {"caller": "Mom", "category": "call"},
+                )
+                self.assertEqual(code, 200)
+                self.assertEqual(call_resp["entry"]["urgency"], "critical")
+                self.assertIn("Incoming Call: Mom", call_resp["entry"]["title"])
+
+                # Clipboard set & get
+                code, clip_set = await asyncio.to_thread(
+                    _http_json,
+                    f"http://127.0.0.1:{port}/api/continuity/clipboard",
+                    "POST",
+                    "cont-token",
+                    {"text": "hello world"},
+                )
+                self.assertEqual(code, 200)
+                self.assertEqual(clip_set["preview"], "hello world")
+
+                code, clip_get = await asyncio.to_thread(
+                    _http_json,
+                    f"http://127.0.0.1:{port}/api/continuity/clipboard",
+                    "GET",
+                    "cont-token",
+                )
+                self.assertEqual(code, 200)
+                self.assertEqual(clip_get["text"], "from-desktop")
+
+                # Continue from Chrome URL
+                code, handoff_resp = await asyncio.to_thread(
+                    _http_json,
+                    f"http://127.0.0.1:{port}/api/continuity/handoff",
+                    "POST",
+                    "cont-token",
+                    {
+                        "text": "Cool doc https://wiki.archlinux.org",
+                        "subject": "Arch Wiki",
+                        "package_name": "com.android.chrome",
+                    },
+                )
+                self.assertEqual(code, 200)
+                self.assertTrue(handoff_resp["ok"])
+                self.assertEqual(handoff_resp["url"], "https://wiki.archlinux.org")
+                self.assertTrue(mock_spawn.called)
         finally:
             await bridge.stop()
 

@@ -31,6 +31,7 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse
 import uuid
 
+import omarchy_continuity
 import omarchy_control
 import omarchy_desktop
 import omarchy_files
@@ -843,6 +844,71 @@ class OmarchyWizardBridge:
                 await self._send_http_json(writer, HTTPStatus.NOT_FOUND, {"error": str(exc)})
             except (ValueError, RuntimeError, PermissionError) as exc:
                 await self._send_http_json(writer, HTTPStatus.BAD_REQUEST, {"error": str(exc)})
+            return
+
+        if method == "GET" and path == "/api/continuity/state":
+            state = await omarchy_continuity.read_continuity_state()
+            await self._send_http_json(writer, HTTPStatus.OK, state)
+            return
+
+        if method == "GET" and path == "/api/continuity/clipboard":
+            res = await omarchy_continuity.get_clipboard()
+            await self._send_http_json(writer, HTTPStatus.OK, res)
+            return
+
+        if method == "POST" and path == "/api/continuity/clipboard":
+            text = body.get("text")
+            if not isinstance(text, str) or not text:
+                await self._send_http_json(
+                    writer, HTTPStatus.BAD_REQUEST, {"error": "Missing non-empty 'text'"}
+                )
+                return
+            res = await omarchy_continuity.set_clipboard(text, notify=bool(body.get("notify", True)))
+            if res.get("ok"):
+                await self.broadcast("continuity.clipboard", {"length": len(text), "preview": res["preview"]})
+            await self._send_http_json(
+                writer, HTTPStatus.OK if res.get("ok") else HTTPStatus.BAD_REQUEST, res
+            )
+            return
+
+        if method == "POST" and path == "/api/continuity/notify":
+            title = str(body.get("title", "")).strip()
+            msg_body = str(body.get("body", "")).strip()
+            caller = str(body.get("caller", "")).strip()
+            if not title and not caller and not msg_body:
+                await self._send_http_json(
+                    writer, HTTPStatus.BAD_REQUEST, {"error": "Missing notification title/caller/body"}
+                )
+                return
+            entry = await omarchy_continuity.notify_desktop(
+                title=title,
+                body=msg_body,
+                app_name=str(body.get("app_name", "Phone")),
+                package_name=str(body.get("package_name", "")),
+                category=str(body.get("category", "notification")),
+                urgency=str(body.get("urgency", "normal")),
+                caller=caller,
+            )
+            await self.broadcast("continuity.notify", entry)
+            await self._send_http_json(writer, HTTPStatus.OK, {"ok": True, "entry": entry})
+            return
+
+        if method == "POST" and path == "/api/continuity/handoff":
+            res = await omarchy_continuity.handoff_to_desktop(
+                url=str(body.get("url", "")),
+                text=str(body.get("text", "")),
+                subject=str(body.get("subject", "")),
+                app=str(body.get("app", "")),
+                package_name=str(body.get("package_name", "")),
+                copy_to_clipboard=bool(body.get("copy_to_clipboard", True)),
+            )
+            if not res.get("ok") and "error" in res:
+                await self._send_http_json(writer, HTTPStatus.BAD_REQUEST, res)
+                return
+            await self.broadcast("continuity.handoff", res)
+            await self._send_http_json(
+                writer, HTTPStatus.OK if res.get("ok") else HTTPStatus.BAD_REQUEST, res
+            )
             return
 
         await self._send_http_json(writer, HTTPStatus.NOT_FOUND, {"error": "Not found"})

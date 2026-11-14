@@ -7,6 +7,7 @@ import '../widgets/arcane_wizard_mascot.dart';
 import '../widgets/quick_cast_bar.dart';
 import '../widgets/spell_log_view.dart';
 import '../widgets/status_pill.dart';
+import 'continuity_screen.dart';
 import 'desktop_screen.dart';
 import 'spellbook_screen.dart';
 
@@ -97,6 +98,21 @@ class _WizardHomeScreenState extends State<WizardHomeScreen> {
                             ),
                           ),
                         ],
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Continuity & Notifications',
+                      visualDensity: VisualDensity.compact,
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => ContinuityScreen(client: client),
+                          ),
+                        );
+                      },
+                      icon: const Icon(
+                        Icons.devices_rounded,
+                        color: WizardColors.emeraldSage,
                       ),
                     ),
                     IconButton(

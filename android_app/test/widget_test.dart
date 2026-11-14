@@ -93,7 +93,21 @@ void main() {
     expect(find.text('R-Click'), findsOneWidget);
     await tester.tap(find.byTooltip('Back'));
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pump();
     expect(find.text('Omarchy Wizard'), findsOneWidget);
+
+    // Open Continuity & Notifications screen and verify controls
+    await tester.tap(find.byTooltip('Continuity & Notifications'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pump();
+    expect(find.text('Omarchy Continuity'), findsOneWidget);
+    expect(find.text('UNIVERSAL CLIPBOARD'), findsOneWidget);
+    expect(find.text('CONTINUE ON OMARCHY'), findsOneWidget);
+
+    await tester.tap(find.text('Test Call'));
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(find.textContaining('Sent call alert to Omarchy'), findsOneWidget);
   });
 }
