@@ -1,14 +1,19 @@
 package com.omarchy.wizard
 
 import android.app.Notification
+import android.app.PendingIntent
+import android.app.RemoteInput
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.os.Bundle
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import org.json.JSONObject
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 
@@ -16,9 +21,17 @@ class WizardNotificationListenerService : NotificationListenerService() {
     private val executor = Executors.newSingleThreadExecutor()
     private val recentSignatures = ConcurrentHashMap<String, Pair<String, Long>>()
 
+    data class ReplyTarget(
+        val pendingIntent: PendingIntent,
+        val remoteInput: RemoteInput,
+        val createdAt: Long,
+    )
+
     companion object {
         @Volatile
         var onNotificationRelayed: ((Map<String, Any>) -> Unit)? = null
+
+        private val replyTargets = ConcurrentHashMap<String, ReplyTarget>()
 
         private val CALL_PACKAGE_HINTS = setOf(
             "com.google.android.dialer",
@@ -28,6 +41,21 @@ class WizardNotificationListenerService : NotificationListenerService() {
             "com.oneplus.dialer",
             "com.android.server.telecom",
         )
+
+        fun sendInlineReply(context: Context, replyId: String, message: String): Boolean {
+            val target = replyTargets[replyId] ?: return false
+            return try {
+                val intent = Intent()
+                val bundle = Bundle().apply {
+                    putCharSequence(target.remoteInput.resultKey, message)
+                }
+                RemoteInput.addResultsToIntent(arrayOf(target.remoteInput), intent, bundle)
+                target.pendingIntent.send(context, 0, intent)
+                true
+            } catch (_: Exception) {
+                false
+            }
+        }
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
@@ -78,6 +106,7 @@ class WizardNotificationListenerService : NotificationListenerService() {
         val host = (prefs.all["flutter.wizard_host"] as? String)?.trim() ?: ""
         val port = (prefs.all["flutter.wizard_port"] as? Number)?.toInt() ?: 7842
         val token = (prefs.all["flutter.wizard_token"] as? String)?.trim() ?: ""
+        val useTls = (prefs.all["flutter.wizard_use_tls"] as? Boolean) ?: false
         if (host.isEmpty()) return
 
         val isMessage = categoryRaw == Notification.CATEGORY_MESSAGE ||
@@ -90,6 +119,23 @@ class WizardNotificationListenerService : NotificationListenerService() {
             else -> "notification"
         }
 
+        var replyId = ""
+        val actions = notification.actions
+        if (actions != null) {
+            for (action in actions) {
+                val inputs = action.remoteInputs
+                if (inputs != null && inputs.isNotEmpty() && action.actionIntent != null) {
+                    replyId = UUID.randomUUID().toString().substring(0, 10)
+                    replyTargets[replyId] = ReplyTarget(action.actionIntent, inputs[0], now)
+                    if (replyTargets.size > 30) {
+                        val oldest = replyTargets.entries.minByOrNull { it.value.createdAt }?.key
+                        if (oldest != null) replyTargets.remove(oldest)
+                    }
+                    break
+                }
+            }
+        }
+
         val appLabel = resolveAppName(pkg)
 
         executor.execute {
@@ -97,12 +143,14 @@ class WizardNotificationListenerService : NotificationListenerService() {
                 host = host,
                 port = port,
                 token = token,
+                useTls = useTls,
                 appName = appLabel,
                 packageName = pkg,
                 category = bridgeCategory,
                 title = title,
                 body = body,
                 caller = if (isCall) title else "",
+                replyId = replyId,
             )
         }
     }
@@ -123,16 +171,19 @@ class WizardNotificationListenerService : NotificationListenerService() {
         host: String,
         port: Int,
         token: String,
+        useTls: Boolean,
         appName: String,
         packageName: String,
         category: String,
         title: String,
         body: String,
         caller: String,
+        replyId: String,
     ) {
         var conn: HttpURLConnection? = null
         try {
-            val url = URL("http://$host:$port/api/continuity/notify")
+            val scheme = if (useTls) "https" else "http"
+            val url = URL("$scheme://$host:$port/api/continuity/notify")
             conn = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
                 connectTimeout = 3500
@@ -150,6 +201,10 @@ class WizardNotificationListenerService : NotificationListenerService() {
                 put("title", title)
                 put("body", body)
                 if (caller.isNotEmpty()) put("caller", caller)
+                if (replyId.isNotEmpty()) {
+                    put("can_reply", true)
+                    put("reply_id", replyId)
+                }
             }
             OutputStreamWriter(conn.outputStream, Charsets.UTF_8).use { writer ->
                 writer.write(payload.toString())
@@ -164,6 +219,7 @@ class WizardNotificationListenerService : NotificationListenerService() {
                         "category" to category,
                         "title" to title,
                         "body" to body,
+                        "can_reply" to replyId.isNotEmpty(),
                     ),
                 )
             }

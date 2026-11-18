@@ -269,6 +269,19 @@ class WaylandVirtualPointer:
     def _ts(self) -> int:
         return int(time.monotonic() * 1000) & 0xFFFFFFFF
 
+    def move_rel(self, dx: float, dy: float) -> bool:
+        """Move pointer by relative pixel displacement (Wayland 24.8 fixed-point)."""
+        fx = int(round(float(dx) * 256.0))
+        fy = int(round(float(dy) * 256.0))
+        if fx == 0 and fy == 0:
+            return True
+        msg = _pack_wl_msg(
+            self._pointer_id,
+            0,  # motion (relative)
+            struct.pack("<Iii", self._ts(), fx, fy),
+        ) + _pack_wl_msg(self._pointer_id, 4)  # frame
+        return self._send(msg)
+
     def move_abs(self, x: int, y: int, extent_w: int, extent_h: int) -> bool:
         """Move pointer in absolute global space [0..extent_w] x [0..extent_h]."""
         if extent_w <= 0 or extent_h <= 0:
@@ -511,8 +524,8 @@ async def handle_desktop_websocket(
         (query.get("fps") or ["4"])[0],
     )
     selected_output = (query.get("output") or [""])[0].strip() or None
-    paused = False
-    force_refresh = True
+    paused = ((query.get("paused") or ["0"])[0]).lower() in {"1", "true", "yes"}
+    force_refresh = not paused
     last_digest = b""
     wake_event = asyncio.Event()
 
@@ -639,10 +652,16 @@ async def handle_desktop_websocket(
                     dx = float(msg.get("dx", 0.0))
                     dy = float(msg.get("dy", 0.0))
                     await asyncio.to_thread(pointer.scroll, dx, dy)
-                    asyncio.create_task(_trigger_repaint(0.06))
+                    if not paused:
+                        asyncio.create_task(_trigger_repaint(0.06))
+                elif action == "relative":
+                    dx = float(msg.get("dx", 0.0))
+                    dy = float(msg.get("dy", 0.0))
+                    await asyncio.to_thread(pointer.move_rel, dx, dy)
                 elif action == "move":
-                    force_refresh = True
-                    wake_event.set()
+                    if not paused:
+                        force_refresh = True
+                        wake_event.set()
 
             elif mtype == "key":
                 ok = await inject_keyboard(

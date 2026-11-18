@@ -1,7 +1,11 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:omarchy_wizard/models/agent_task.dart';
 import 'package:omarchy_wizard/models/system_control.dart';
 import 'package:omarchy_wizard/models/wizard_mood.dart';
+import 'package:omarchy_wizard/services/tls_overrides.dart';
 import 'package:omarchy_wizard/theme/wizard_theme.dart';
 
 void main() {
@@ -156,5 +160,24 @@ void main() {
     expect(latte.obsidian.toARGB32(), 0xFFEFF1F5);
     expect(latte.textPrimary.toARGB32(), 0xFF4C4F69);
     expect(WizardTheme.fromPalette(latte).brightness.name, 'light');
+  });
+
+  test('sha256Hex matches standard NIST vector and AgentUsageInfo parses limits', () {
+    expect(
+      sha256Hex(Uint8List.fromList(utf8.encode('abc'))),
+      'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad',
+    );
+    final usage = AgentUsageInfo.fromJson({
+      'id': 'agy',
+      'name': 'Antigravity',
+      'tier_label': 'Pro',
+      'today_prompts': 13,
+      'limits': [
+        {'title': 'Session', 'percent': 25.0}
+      ],
+    });
+    expect(usage.name, 'Antigravity');
+    expect(usage.todayPrompts, 13);
+    expect(usage.limits.first.percent, 25.0);
   });
 }

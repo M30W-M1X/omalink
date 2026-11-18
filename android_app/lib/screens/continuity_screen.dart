@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../services/bridge_client.dart';
@@ -109,6 +110,27 @@ class _ContinuityScreenState extends State<ContinuityScreen>
           body: ListView(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
             children: [
+              if (client.isRinging) ...[
+                Card(
+                  color: WizardColors.coralError.withValues(alpha: 0.2),
+                  child: ListTile(
+                    leading: Icon(Icons.notifications_active, color: WizardColors.coralError),
+                    title: Text(
+                      'Find My Phone is ringing!',
+                      style: TextStyle(color: WizardColors.textPrimary, fontWeight: FontWeight.w800),
+                    ),
+                    trailing: FilledButton(
+                      onPressed: () => unawaited(client.stopRinging()),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: WizardColors.coralError,
+                        foregroundColor: WizardColors.obsidian,
+                      ),
+                      child: const Text('Stop'),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
               if (banner != null && banner.isNotEmpty) ...[
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -311,6 +333,63 @@ class _ContinuityScreenState extends State<ContinuityScreen>
                             ),
                           ),
                         ),
+                      ],
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(
+                          'Auto-Sync PC Clipboard to Phone',
+                          style: TextStyle(color: WizardColors.textPrimary, fontSize: 13),
+                        ),
+                        subtitle: Text(
+                          'Copies new desktop clipboard entries automatically while connected.',
+                          style: TextStyle(color: WizardColors.textMuted, fontSize: 11),
+                        ),
+                        value: settings.autoSyncClipboard,
+                        onChanged: (v) => unawaited(client.updateAutoSyncClipboard(v)),
+                      ),
+                      if (client.desktopClipboardHistory.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          'RECENT DESKTOP CLIPBOARD',
+                          style: TextStyle(
+                            color: WizardColors.textMuted,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.9,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        for (final entry in client.desktopClipboardHistory.take(5))
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 6),
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(8),
+                              onTap: () {
+                                unawaited(Clipboard.setData(ClipboardData(text: entry)));
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Copied desktop item to phone clipboard')),
+                                );
+                              },
+                              child: Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                                decoration: BoxDecoration(
+                                  color: WizardColors.surfaceElevated,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  entry,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: WizardColors.textPrimary,
+                                    fontSize: 12,
+                                    fontFamily: 'monospace',
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
                       ],
                     ],
                   ),

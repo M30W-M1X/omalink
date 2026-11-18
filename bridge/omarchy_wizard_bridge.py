@@ -24,11 +24,12 @@ import secrets
 import shutil
 import signal
 import socket
+import ssl
 import struct
 import subprocess
 import sys
 from typing import Any
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, quote, urlparse
 import uuid
 
 import omarchy_continuity
@@ -407,15 +408,25 @@ class WebSocketClient:
 class OmarchyWizardBridge:
     """Core bridge server managing tasks, WebSocket broadcasts, and HTTP endpoints."""
 
-    def __init__(self, host: str = "0.0.0.0", port: int = DEFAULT_PORT, token: str | None = None) -> None:
+    def __init__(
+        self,
+        host: str = "0.0.0.0",
+        port: int = DEFAULT_PORT,
+        token: str | None = None,
+        use_tls: bool = False,
+    ) -> None:
         self.host = host
         self.port = port
         self.token = load_or_create_token(token)
+        self.use_tls = bool(use_tls or os.environ.get("OMARCHY_WIZARD_TLS", "").lower() in {"1", "true", "yes"})
+        self.tls_fingerprint: str = ""
+        self._ssl_ctx: ssl.SSLContext | None = None
         self.tasks: dict[str, AgentTask] = {}
         self.task_order: list[str] = []
         self.ws_clients: set[WebSocketClient] = set()
         self._bg_tasks: set[asyncio.Task[None]] = set()
         self._theme_watch_task: asyncio.Task[None] | None = None
+        self._mdns_proc: subprocess.Popen[bytes] | None = None
         self.server: asyncio.AbstractServer | None = None
         self.bound_port: int = port
 
@@ -430,12 +441,28 @@ class OmarchyWizardBridge:
             return True
         return False
 
+    def pairing_uri(self) -> str:
+        lan_ip = detect_lan_ips()[0]
+        ts_ip = omarchy_control.detect_tailscale_ip()
+        params = [
+            f"host={quote(lan_ip)}",
+            f"port={self.bound_port}",
+            f"token={quote(self.token)}",
+            f"tls={'1' if self.use_tls else '0'}",
+        ]
+        if self.tls_fingerprint:
+            params.append(f"fp={quote(self.tls_fingerprint)}")
+        if ts_ip:
+            params.append(f"ts={quote(ts_ip)}")
+        return f"omarchy-wizard://pair?{'&'.join(params)}"
+
     def status_payload(self) -> dict[str, Any]:
         info = read_omarchy_info()
         running = sum(1 for t in self.tasks.values() if t.status == "running")
+        ts_ip = omarchy_control.detect_tailscale_ip()
         return {
             "ok": True,
-            "bridge_version": "1.0.0",
+            "bridge_version": "2.0.0",
             "hostname": info["hostname"],
             "os_name": info["os_name"],
             "os_version": info["os_version"],
@@ -445,8 +472,14 @@ class OmarchyWizardBridge:
             "running_tasks": running,
             "connected_clients": len(self.ws_clients),
             "lan_ips": detect_lan_ips(),
+            "tailscale_ip": ts_ip,
+            "tls": self.use_tls,
+            "tls_fingerprint": self.tls_fingerprint,
+            "pair_uri": self.pairing_uri(),
             "total_tasks": len(self.tasks),
             "theme": omarchy_control.read_theme_palette_sync(),
+            "phone": omarchy_continuity.get_phone_device_state(),
+            "replyable_notification": omarchy_continuity.latest_replyable_notification(),
         }
 
     async def broadcast(self, event_type: str, data: dict[str, Any]) -> None:
@@ -598,15 +631,108 @@ class OmarchyWizardBridge:
         await self.broadcast("task.cancelled", task.to_dict())
         return task
 
+    def _ensure_tls_context(self) -> ssl.SSLContext | None:
+        if not self.use_tls:
+            return None
+        cfg = get_config_dir()
+        cfg.mkdir(parents=True, exist_ok=True)
+        cert_path = cfg / "cert.pem"
+        key_path = cfg / "key.pem"
+        if not (cert_path.is_file() and key_path.is_file()):
+            if not shutil.which("openssl"):
+                raise RuntimeError("openssl is required to generate self-signed TLS certificate")
+            lan_ip = detect_lan_ips()[0]
+            ts_ip = omarchy_control.detect_tailscale_ip()
+            san = f"IP:127.0.0.1,IP:{lan_ip}" + (f",IP:{ts_ip}" if ts_ip else "")
+            subprocess.run(
+                [
+                    "openssl",
+                    "req",
+                    "-x509",
+                    "-newkey",
+                    "ec",
+                    "-pkeyopt",
+                    "ec_paramgen_curve:prime256v1",
+                    "-keyout",
+                    str(key_path),
+                    "-out",
+                    str(cert_path),
+                    "-days",
+                    "825",
+                    "-nodes",
+                    "-subj",
+                    f"/CN={socket.gethostname()}",
+                    "-addext",
+                    f"subjectAltName={san}",
+                ],
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=10,
+            )
+            os.chmod(key_path, 0o600)
+
+        # Compute SHA-256 fingerprint of DER cert for client pinning
+        pem_lines = [
+            line.strip()
+            for line in cert_path.read_text(encoding="utf-8").splitlines()
+            if line.strip() and not line.startswith("-----")
+        ]
+        der = base64.b64decode("".join(pem_lines))
+        self.tls_fingerprint = hashlib.sha256(der).hexdigest()
+
+        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        ctx.load_cert_chain(certfile=str(cert_path), keyfile=str(key_path))
+        return ctx
+
+    def _start_mdns(self) -> None:
+        if self.port == 0 or os.environ.get("OMARCHY_WIZARD_NO_MDNS", "") == "1":
+            return
+        if not shutil.which("avahi-publish"):
+            return
+        try:
+            lan_ip = detect_lan_ips()[0]
+            ts_ip = omarchy_control.detect_tailscale_ip()
+            svc_name = f"Omarchy Wizard ({socket.gethostname()})"
+            cmd = [
+                "avahi-publish",
+                "-s",
+                svc_name,
+                "_omarchy-wizard._tcp",
+                str(self.bound_port),
+                f"host={lan_ip}",
+                f"tls={'1' if self.use_tls else '0'}",
+            ]
+            if self.tls_fingerprint:
+                cmd.append(f"fp={self.tls_fingerprint}")
+            if ts_ip:
+                cmd.append(f"ts={ts_ip}")
+            self._mdns_proc = subprocess.Popen(
+                cmd,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except OSError:
+            self._mdns_proc = None
+
     async def start(self) -> None:
-        self.server = await asyncio.start_server(self._handle_connection, self.host, self.port)
+        self._ssl_ctx = self._ensure_tls_context()
+        self.server = await asyncio.start_server(
+            self._handle_connection,
+            self.host,
+            self.port,
+            ssl=self._ssl_ctx,
+        )
         sockets = self.server.sockets
         if sockets:
             self.bound_port = sockets[0].getsockname()[1]
-        self._theme_watch_task = asyncio.create_task(self._watch_theme_loop())
+        self._start_mdns()
+        self._theme_watch_task = asyncio.create_task(self._watch_host_loop())
 
-    async def _watch_theme_loop(self) -> None:
+    async def _watch_host_loop(self) -> None:
         last_sig = omarchy_control.read_theme_generation()
+        last_clip_mtime = omarchy_continuity.clipboard_history_mtime()
         try:
             while True:
                 await asyncio.sleep(2.0)
@@ -617,10 +743,30 @@ class OmarchyWizardBridge:
                     last_sig = sig
                     palette = await omarchy_control.read_theme_palette()
                     await self.broadcast("theme.changed", palette)
+
+                clip_mtime = omarchy_continuity.clipboard_history_mtime()
+                if clip_mtime > last_clip_mtime:
+                    last_clip_mtime = clip_mtime
+                    history = await asyncio.to_thread(omarchy_continuity.read_clipboard_history_sync, 15)
+                    if history:
+                        await self.broadcast(
+                            "continuity.clipboard_update",
+                            {"text": history[0], "history": history},
+                        )
         except asyncio.CancelledError:
             return
 
     async def stop(self) -> None:
+        if self._mdns_proc is not None and self._mdns_proc.poll() is None:
+            try:
+                self._mdns_proc.terminate()
+                self._mdns_proc.wait(timeout=1.5)
+            except Exception:
+                try:
+                    self._mdns_proc.kill()
+                except Exception:
+                    pass
+            self._mdns_proc = None
         if self._theme_watch_task is not None and not self._theme_watch_task.done():
             self._theme_watch_task.cancel()
             try:
@@ -879,6 +1025,93 @@ class OmarchyWizardBridge:
                 await self._send_http_json(writer, HTTPStatus.BAD_REQUEST, {"error": str(exc)})
             return
 
+        if method == "POST" and path == "/api/files/upload":
+            filename = str(body.get("filename", "")).strip() or "shared_file"
+            raw_b64 = body.get("data_base64")
+            dest_dir = str(body.get("dir", "")).strip() or None
+            if not isinstance(raw_b64, str) or not raw_b64:
+                await self._send_http_json(
+                    writer, HTTPStatus.BAD_REQUEST, {"error": "Missing 'data_base64'"}
+                )
+                return
+            try:
+                raw_bytes = base64.b64decode(raw_b64, validate=False)
+                res = await omarchy_files.save_uploaded_file(filename, raw_bytes, dest_dir=dest_dir)
+                await omarchy_continuity.notify_desktop(
+                    title="File Received from Phone",
+                    body=f"Saved {res['name']} ({res['size']} bytes)",
+                    app_name="Continuity",
+                    category="continuity",
+                )
+                await self.broadcast("files.uploaded", {"name": res["name"], "path": res["path"]})
+                await self._send_http_json(writer, HTTPStatus.CREATED, res)
+            except (ValueError, FileNotFoundError, PermissionError) as exc:
+                await self._send_http_json(writer, HTTPStatus.BAD_REQUEST, {"error": str(exc)})
+            return
+
+        if method == "GET" and path == "/api/files/download":
+            raw_path = (query.get("path") or [""])[0]
+            if not raw_path:
+                await self._send_http_json(writer, HTTPStatus.BAD_REQUEST, {"error": "Missing 'path'"})
+                return
+            try:
+                fname, content = await omarchy_files.read_file_bytes(raw_path)
+                await self._send_http_bytes(
+                    writer,
+                    HTTPStatus.OK,
+                    content,
+                    content_type="application/octet-stream",
+                    filename=fname,
+                )
+            except FileNotFoundError as exc:
+                await self._send_http_json(writer, HTTPStatus.NOT_FOUND, {"error": str(exc)})
+            except (ValueError, PermissionError) as exc:
+                await self._send_http_json(writer, HTTPStatus.BAD_REQUEST, {"error": str(exc)})
+            return
+
+        if method == "GET" and path == "/api/agents/usage":
+            force = ((query.get("force") or ["0"])[0]).lower() in {"1", "true"}
+            agents = await omarchy_control.read_agents_usage(force=force)
+            await self._send_http_json(writer, HTTPStatus.OK, {"agents": agents})
+            return
+
+        if method == "GET" and path == "/api/pairing/info":
+            uri = self.pairing_uri()
+            qr_b64 = ""
+            if shutil.which("qrencode"):
+                try:
+                    proc = await asyncio.create_subprocess_exec(
+                        "qrencode",
+                        "-o",
+                        "-",
+                        "-s",
+                        "6",
+                        "-m",
+                        "2",
+                        uri,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.DEVNULL,
+                    )
+                    out, _ = await asyncio.wait_for(proc.communicate(), timeout=3.0)
+                    if proc.returncode == 0 and out:
+                        qr_b64 = base64.b64encode(out).decode("ascii")
+                except Exception:
+                    pass
+            await self._send_http_json(
+                writer,
+                HTTPStatus.OK,
+                {
+                    "pair_uri": uri,
+                    "lan_ips": detect_lan_ips(),
+                    "tailscale_ip": omarchy_control.detect_tailscale_ip(),
+                    "port": self.bound_port,
+                    "tls": self.use_tls,
+                    "tls_fingerprint": self.tls_fingerprint,
+                    "qr_png_base64": qr_b64,
+                },
+            )
+            return
+
         if method == "GET" and path == "/api/continuity/state":
             state = await omarchy_continuity.read_continuity_state()
             await self._send_http_json(writer, HTTPStatus.OK, state)
@@ -886,6 +1119,7 @@ class OmarchyWizardBridge:
 
         if method == "GET" and path == "/api/continuity/clipboard":
             res = await omarchy_continuity.get_clipboard()
+            res["history"] = await asyncio.to_thread(omarchy_continuity.read_clipboard_history_sync, 20)
             await self._send_http_json(writer, HTTPStatus.OK, res)
             return
 
@@ -921,9 +1155,49 @@ class OmarchyWizardBridge:
                 category=str(body.get("category", "notification")),
                 urgency=str(body.get("urgency", "normal")),
                 caller=caller,
+                can_reply=bool(body.get("can_reply", False)),
+                reply_id=str(body.get("reply_id", "")),
             )
             await self.broadcast("continuity.notify", entry)
             await self._send_http_json(writer, HTTPStatus.OK, {"ok": True, "entry": entry})
+            return
+
+        if method == "POST" and path == "/api/continuity/reply":
+            reply_id = str(body.get("reply_id", "")).strip()
+            text = str(body.get("text", "")).strip()
+            if not reply_id or not text:
+                await self._send_http_json(
+                    writer, HTTPStatus.BAD_REQUEST, {"error": "Missing 'reply_id' or 'text'"}
+                )
+                return
+            await self.broadcast("phone.reply", {"reply_id": reply_id, "text": text})
+            await self._send_http_json(
+                writer,
+                HTTPStatus.OK,
+                {"ok": True, "reply_id": reply_id, "delivered_clients": len(self.ws_clients)},
+            )
+            return
+
+        if method == "POST" and path == "/api/continuity/device":
+            battery_raw = body.get("battery")
+            battery = int(battery_raw) if isinstance(battery_raw, (int, float)) else None
+            phone = omarchy_continuity.update_phone_device_state(
+                name=str(body.get("name", "")),
+                battery=battery,
+                charging=bool(body.get("charging", False)),
+            )
+            await self.broadcast("continuity.device", phone)
+            await self._send_http_json(writer, HTTPStatus.OK, {"ok": True, "phone": phone})
+            return
+
+        if method == "POST" and path == "/api/continuity/ring":
+            duration = max(3, min(30, int(body.get("duration", 12))))
+            await self.broadcast("phone.ring", {"duration": duration})
+            await self._send_http_json(
+                writer,
+                HTTPStatus.OK,
+                {"ok": True, "duration": duration, "delivered_clients": len(self.ws_clients)},
+            )
             return
 
         if method == "POST" and path == "/api/continuity/handoff":
@@ -1024,13 +1298,46 @@ class OmarchyWizardBridge:
                 elif opcode == 0x1:  # Text
                     try:
                         msg = json.loads(payload.decode("utf-8"))
-                        if isinstance(msg, dict) and msg.get("type") == "ping":
-                            await client.send_json({"type": "pong", "ts": utc_now_iso()})
+                        if isinstance(msg, dict):
+                            mtype = msg.get("type")
+                            if mtype == "ping":
+                                await client.send_json({"type": "pong", "ts": utc_now_iso()})
+                            elif mtype == "device.status":
+                                raw_bat = msg.get("battery")
+                                omarchy_continuity.update_phone_device_state(
+                                    name=str(msg.get("name", "")),
+                                    battery=int(raw_bat) if isinstance(raw_bat, (int, float)) else None,
+                                    charging=bool(msg.get("charging", False)),
+                                )
                     except Exception:
                         pass
         finally:
             self.ws_clients.discard(client)
             await client.close()
+
+    async def _send_http_bytes(
+        self,
+        writer: asyncio.StreamWriter,
+        status: HTTPStatus,
+        body: bytes,
+        *,
+        content_type: str = "application/octet-stream",
+        filename: str | None = None,
+    ) -> None:
+        disp = f'Content-Disposition: attachment; filename="{filename}"\r\n' if filename else ""
+        headers = (
+            f"HTTP/1.1 {status.value} {status.phrase}\r\n"
+            f"Content-Type: {content_type}\r\n"
+            f"{disp}"
+            f"Content-Length: {len(body)}\r\n"
+            "Access-Control-Allow-Origin: *\r\n"
+            "Connection: close\r\n\r\n"
+        ).encode("utf-8")
+        try:
+            writer.write(headers + body)
+            await writer.drain()
+        finally:
+            writer.close()
 
     async def _send_http_json(
         self, writer: asyncio.StreamWriter, status: HTTPStatus, payload: dict[str, Any]
@@ -1062,15 +1369,19 @@ def detect_lan_ips() -> list[str]:
     return ips or ["127.0.0.1"]
 
 
-async def run_server(host: str, port: int, token: str | None) -> None:
-    bridge = OmarchyWizardBridge(host=host, port=port, token=token)
+async def run_server(host: str, port: int, token: str | None, use_tls: bool = False) -> None:
+    bridge = OmarchyWizardBridge(host=host, port=port, token=token, use_tls=use_tls)
     await bridge.start()
     ips = detect_lan_ips()
-    print("✨ Omarchy Wizard Bridge is listening!")
+    scheme = "https" if bridge.use_tls else "http"
+    print("✨ Omarchy Wizard Bridge v2.0 is listening!")
     print(f"   Host/Port : {host}:{bridge.bound_port}")
     for ip in ips:
-        print(f"   Pair URL  : http://{ip}:{bridge.bound_port}")
+        print(f"   Pair URL  : {scheme}://{ip}:{bridge.bound_port}")
+    if bridge.tls_fingerprint:
+        print(f"   TLS SHA256: {bridge.tls_fingerprint}")
     print(f"   Token     : {bridge.token}")
+    print(f"   Pair URI  : {bridge.pairing_uri()}")
     print(f"   Agent     : {get_default_agent()} (available: {', '.join(detect_available_agents())})")
 
     stop_event = asyncio.Event()
@@ -1086,8 +1397,9 @@ def main() -> None:
     parser.add_argument("--host", default="0.0.0.0", help="Bind address (default: 0.0.0.0)")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT, help=f"Port (default: {DEFAULT_PORT})")
     parser.add_argument("--token", default=None, help="Explicit bearer token")
+    parser.add_argument("--tls", action="store_true", help="Enable self-signed TLS encryption")
     args = parser.parse_args()
-    asyncio.run(run_server(args.host, args.port, args.token))
+    asyncio.run(run_server(args.host, args.port, args.token, use_tls=args.tls))
 
 
 if __name__ == "__main__":

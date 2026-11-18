@@ -315,6 +315,7 @@ class OmarchyToggles {
     required this.barHidden,
     required this.screensaverOff,
     required this.animationsOff,
+    this.dnd = false,
   });
 
   final bool nightlight;
@@ -322,6 +323,7 @@ class OmarchyToggles {
   final bool barHidden;
   final bool screensaverOff;
   final bool animationsOff;
+  final bool dnd;
 
   factory OmarchyToggles.fromJson(Map<String, dynamic> json) {
     return OmarchyToggles(
@@ -330,6 +332,7 @@ class OmarchyToggles {
       barHidden: json['bar_hidden'] == true,
       screensaverOff: json['screensaver_off'] == true,
       animationsOff: json['animations_off'] == true,
+      dnd: json['dnd'] == true,
     );
   }
 
@@ -339,6 +342,7 @@ class OmarchyToggles {
     bool? barHidden,
     bool? screensaverOff,
     bool? animationsOff,
+    bool? dnd,
   }) {
     return OmarchyToggles(
       nightlight: nightlight ?? this.nightlight,
@@ -346,6 +350,7 @@ class OmarchyToggles {
       barHidden: barHidden ?? this.barHidden,
       screensaverOff: screensaverOff ?? this.screensaverOff,
       animationsOff: animationsOff ?? this.animationsOff,
+      dnd: dnd ?? this.dnd,
     );
   }
 }
@@ -384,34 +389,185 @@ class ThemeState {
   }
 }
 
+class BluetoothDeviceInfo {
+  const BluetoothDeviceInfo({
+    required this.address,
+    required this.name,
+    required this.connected,
+    this.icon = '',
+  });
+
+  final String address;
+  final String name;
+  final bool connected;
+  final String icon;
+
+  factory BluetoothDeviceInfo.fromJson(Map<String, dynamic> json) {
+    return BluetoothDeviceInfo(
+      address: json['address']?.toString() ?? '',
+      name: json['name']?.toString() ?? 'Device',
+      connected: json['connected'] == true,
+      icon: json['icon']?.toString() ?? '',
+    );
+  }
+
+  BluetoothDeviceInfo copyWith({bool? connected}) {
+    return BluetoothDeviceInfo(
+      address: address,
+      name: name,
+      connected: connected ?? this.connected,
+      icon: icon,
+    );
+  }
+}
+
+class CaptureState {
+  const CaptureState({this.recording = false});
+
+  final bool recording;
+
+  factory CaptureState.fromJson(Map<String, dynamic> json) {
+    return CaptureState(recording: json['recording'] == true);
+  }
+}
+
+class RemindersState {
+  const RemindersState({
+    this.count = 0,
+    this.active = false,
+    this.reminders = const [],
+  });
+
+  final int count;
+  final bool active;
+  final List<Map<String, dynamic>> reminders;
+
+  factory RemindersState.fromJson(Map<String, dynamic> json) {
+    final raw = json['reminders'] as List<dynamic>? ?? const [];
+    return RemindersState(
+      count: (json['count'] as num?)?.toInt() ?? raw.length,
+      active: json['active'] == true,
+      reminders: raw.whereType<Map<String, dynamic>>().toList(),
+    );
+  }
+}
+
+class UpdatesState {
+  const UpdatesState({
+    this.available = false,
+    this.count = 0,
+    this.items = const [],
+  });
+
+  final bool available;
+  final int count;
+  final List<String> items;
+
+  factory UpdatesState.fromJson(Map<String, dynamic> json) {
+    final raw = json['items'] as List<dynamic>? ?? const [];
+    return UpdatesState(
+      available: json['available'] == true,
+      count: (json['count'] as num?)?.toInt() ?? raw.length,
+      items: raw.map((e) => e.toString()).toList(),
+    );
+  }
+}
+
+class AgentQuotaLimit {
+  const AgentQuotaLimit({
+    required this.title,
+    required this.percent,
+    this.resetsAt = '',
+  });
+
+  final String title;
+  final double percent;
+  final String resetsAt;
+
+  factory AgentQuotaLimit.fromJson(Map<String, dynamic> json) {
+    return AgentQuotaLimit(
+      title: json['title']?.toString() ?? 'Quota',
+      percent: (json['percent'] as num?)?.toDouble() ?? 0.0,
+      resetsAt: json['resets_at']?.toString() ?? '',
+    );
+  }
+}
+
+class AgentUsageInfo {
+  const AgentUsageInfo({
+    required this.id,
+    required this.name,
+    this.tierLabel = '',
+    this.todayPrompts = 0,
+    this.todayTokens = 0,
+    this.limits = const [],
+  });
+
+  final String id;
+  final String name;
+  final String tierLabel;
+  final int todayPrompts;
+  final int todayTokens;
+  final List<AgentQuotaLimit> limits;
+
+  factory AgentUsageInfo.fromJson(Map<String, dynamic> json) {
+    final rawLimits = json['limits'] as List<dynamic>? ?? const [];
+    return AgentUsageInfo(
+      id: json['id']?.toString() ?? '',
+      name: json['name']?.toString() ?? '',
+      tierLabel: json['tier_label']?.toString() ?? '',
+      todayPrompts: (json['today_prompts'] as num?)?.toInt() ?? 0,
+      todayTokens: (json['today_tokens'] as num?)?.toInt() ?? 0,
+      limits: rawLimits
+          .whereType<Map<String, dynamic>>()
+          .map(AgentQuotaLimit.fromJson)
+          .toList(),
+    );
+  }
+}
+
 class SecurityState {
   const SecurityState({
     required this.passwordlessSudo,
     this.bluetoothPowered,
+    this.bluetoothDevices = const [],
     this.tailscaleActive,
+    this.tailscaleIp = '',
   });
 
   final bool passwordlessSudo;
   final bool? bluetoothPowered;
+  final List<BluetoothDeviceInfo> bluetoothDevices;
   final bool? tailscaleActive;
+  final String tailscaleIp;
 
   factory SecurityState.fromJson(Map<String, dynamic> json) {
+    final rawBt = json['bluetooth_devices'] as List<dynamic>? ?? const [];
     return SecurityState(
       passwordlessSudo: json['passwordless_sudo'] == true,
       bluetoothPowered: json['bluetooth_powered'] as bool?,
+      bluetoothDevices: rawBt
+          .whereType<Map<String, dynamic>>()
+          .map(BluetoothDeviceInfo.fromJson)
+          .toList(),
       tailscaleActive: json['tailscale_active'] as bool?,
+      tailscaleIp: json['tailscale_ip']?.toString() ?? '',
     );
   }
 
   SecurityState copyWith({
     bool? passwordlessSudo,
     bool? bluetoothPowered,
+    List<BluetoothDeviceInfo>? bluetoothDevices,
     bool? tailscaleActive,
+    String? tailscaleIp,
   }) {
     return SecurityState(
       passwordlessSudo: passwordlessSudo ?? this.passwordlessSudo,
       bluetoothPowered: bluetoothPowered ?? this.bluetoothPowered,
+      bluetoothDevices: bluetoothDevices ?? this.bluetoothDevices,
       tailscaleActive: tailscaleActive ?? this.tailscaleActive,
+      tailscaleIp: tailscaleIp ?? this.tailscaleIp,
     );
   }
 }
@@ -431,6 +587,9 @@ class SystemState {
     required this.toggles,
     required this.theme,
     required this.security,
+    this.capture = const CaptureState(),
+    this.reminders = const RemindersState(),
+    this.updates = const UpdatesState(),
   });
 
   final String hostname;
@@ -446,6 +605,9 @@ class SystemState {
   final OmarchyToggles toggles;
   final ThemeState theme;
   final SecurityState security;
+  final CaptureState capture;
+  final RemindersState reminders;
+  final UpdatesState updates;
 
   factory SystemState.fromJson(Map<String, dynamic> json) {
     return SystemState(
@@ -462,6 +624,9 @@ class SystemState {
       toggles: OmarchyToggles.fromJson(json['toggles'] as Map<String, dynamic>? ?? const {}),
       theme: ThemeState.fromJson(json['theme'] as Map<String, dynamic>? ?? const {}),
       security: SecurityState.fromJson(json['security'] as Map<String, dynamic>? ?? const {}),
+      capture: CaptureState.fromJson(json['capture'] as Map<String, dynamic>? ?? const {}),
+      reminders: RemindersState.fromJson(json['reminders'] as Map<String, dynamic>? ?? const {}),
+      updates: UpdatesState.fromJson(json['updates'] as Map<String, dynamic>? ?? const {}),
     );
   }
 
@@ -551,8 +716,30 @@ class SystemState {
       security: SecurityState(
         passwordlessSudo: false,
         bluetoothPowered: true,
-        tailscaleActive: false,
+        bluetoothDevices: [
+          BluetoothDeviceInfo(
+            address: 'AA:BB:CC:DD:EE:01',
+            name: 'Sony WH-1000XM5',
+            connected: true,
+          ),
+          BluetoothDeviceInfo(
+            address: 'AA:BB:CC:DD:EE:02',
+            name: 'Keychron Q1 Pro',
+            connected: false,
+          ),
+        ],
+        tailscaleActive: true,
+        tailscaleIp: '100.64.0.42',
       ),
+      capture: CaptureState(recording: false),
+      reminders: RemindersState(
+        count: 1,
+        active: true,
+        reminders: [
+          {'message': 'Check server deploy', 'remaining': '14m'},
+        ],
+      ),
+      updates: UpdatesState(available: false, count: 0, items: []),
     );
   }
 
@@ -563,6 +750,9 @@ class SystemState {
     OmarchyToggles? toggles,
     ThemeState? theme,
     SecurityState? security,
+    CaptureState? capture,
+    RemindersState? reminders,
+    UpdatesState? updates,
   }) {
     return SystemState(
       hostname: hostname,
@@ -578,6 +768,9 @@ class SystemState {
       toggles: toggles ?? this.toggles,
       theme: theme ?? this.theme,
       security: security ?? this.security,
+      capture: capture ?? this.capture,
+      reminders: reminders ?? this.reminders,
+      updates: updates ?? this.updates,
     );
   }
 }

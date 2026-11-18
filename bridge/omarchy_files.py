@@ -13,6 +13,7 @@ from typing import Any
 
 MAX_READ_BYTES = 131_072
 MAX_DIR_ENTRIES = 400
+MAX_TRANSFER_BYTES = 40 * 1024 * 1024  # 40 MB safety cap for phone <-> PC transfers
 
 
 def _bookmarks() -> list[dict[str, str]]:
@@ -215,5 +216,65 @@ async def open_on_desktop(raw_path: str) -> dict[str, Any]:
     return await asyncio.to_thread(open_on_desktop_sync, raw_path)
 
 
+def save_uploaded_file_sync(
+    filename: str,
+    data: bytes,
+    dest_dir: str | None = None,
+) -> dict[str, Any]:
+    """Save an uploaded file from phone into dest_dir (default ~/Downloads), avoiding collisions."""
+    if len(data) > MAX_TRANSFER_BYTES:
+        raise ValueError(f"File exceeds {MAX_TRANSFER_BYTES // (1024 * 1024)} MB limit")
+    safe_name = _safe_child_name(Path(filename).name if filename else "shared_file")
+    if dest_dir and dest_dir.strip():
+        target_dir = _resolve_existing_path(dest_dir, fallback_home=False)
+    else:
+        target_dir = (Path.home() / "Downloads").resolve()
+        target_dir.mkdir(parents=True, exist_ok=True)
+    if not target_dir.is_dir():
+        raise FileNotFoundError(f"Destination directory not found: {target_dir}")
+
+    dest = target_dir / safe_name
+    if dest.exists():
+        stem = dest.stem
+        suffix = dest.suffix
+        for idx in range(1, 1000):
+            candidate = target_dir / f"{stem} ({idx}){suffix}"
+            if not candidate.exists():
+                dest = candidate
+                break
+
+    dest.write_bytes(data)
+    return {
+        "ok": True,
+        "path": str(dest),
+        "name": dest.name,
+        "size": len(data),
+        "entry": _format_entry(dest),
+    }
+
+
+def read_file_bytes_sync(raw_path: str) -> tuple[str, bytes]:
+    """Read raw file bytes for download to phone."""
+    target = _resolve_existing_path(raw_path)
+    if not target.exists() or not target.is_file():
+        raise FileNotFoundError(f"File not found: {raw_path}")
+    size = target.stat().st_size
+    if size > MAX_TRANSFER_BYTES:
+        raise ValueError(f"File exceeds {MAX_TRANSFER_BYTES // (1024 * 1024)} MB download limit")
+    return target.name, target.read_bytes()
+
+
 async def trash_entry(raw_path: str) -> dict[str, Any]:
     return await asyncio.to_thread(trash_entry_sync, raw_path)
+
+
+async def save_uploaded_file(
+    filename: str,
+    data: bytes,
+    dest_dir: str | None = None,
+) -> dict[str, Any]:
+    return await asyncio.to_thread(save_uploaded_file_sync, filename, data, dest_dir)
+
+
+async def read_file_bytes(raw_path: str) -> tuple[str, bytes]:
+    return await asyncio.to_thread(read_file_bytes_sync, raw_path)

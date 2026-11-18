@@ -13,6 +13,7 @@ import '../theme/wizard_theme.dart';
 import 'continuity_service.dart';
 import 'notification_service.dart';
 import 'settings_store.dart';
+import 'tls_overrides.dart';
 
 enum BridgeConnectionState {
   disconnected,
@@ -127,7 +128,32 @@ class BridgeClient extends ChangeNotifier {
   Timer? _reconnectTimer;
   Timer? _celebrateResetTimer;
   Timer? _demoTimer;
+  Timer? _batteryTimer;
   final Set<String> _watchedTaskIds = <String>{};
+
+  bool _isRinging = false;
+  bool get isRinging => _isRinging;
+
+  List<String> _desktopClipboardHistory = const [];
+  List<String> get desktopClipboardHistory => List.unmodifiable(_desktopClipboardHistory);
+
+  List<AgentUsageInfo> _agentUsage = const [];
+  List<AgentUsageInfo> get agentUsage => List.unmodifiable(_agentUsage);
+
+  String _detectedTailscaleIp = '';
+  String get detectedTailscaleIp =>
+      _detectedTailscaleIp.isNotEmpty ? _detectedTailscaleIp : _settings.tailscaleHost;
+
+  void _configureTlsOverrides() {
+    if (_settings.useTls && !_settings.demoMode && _settings.host.isNotEmpty) {
+      HttpOverrides.global = WizardTlsOverrides(
+        allowedHost: _settings.host,
+        pinnedSha256: _settings.tlsFingerprint,
+      );
+    } else {
+      HttpOverrides.global = null;
+    }
+  }
   final Set<String> _notifiedTaskIds = <String>{};
   bool _disposed = false;
 
@@ -220,6 +246,7 @@ class BridgeClient extends ChangeNotifier {
       } catch (_) {}
     }
     _syncActiveColors();
+    _configureTlsOverrides();
 
     _notificationAccessEnabled =
         await ContinuityService.instance.isNotificationListenerEnabled();
@@ -232,6 +259,12 @@ class BridgeClient extends ChangeNotifier {
             packageName: share.packageName,
           ),
         );
+      },
+      onFileShare: (fileShare) {
+        unawaited(uploadSharedFile(fileShare.filename, fileShare.dataBase64));
+      },
+      onPairUri: (pairUri) {
+        unawaited(applyPairingUri(pairUri));
       },
       onRelayedNotification: (relayed) {
         _continuityActivity.insert(0, {
@@ -251,15 +284,36 @@ class BridgeClient extends ChangeNotifier {
       await connect();
     }
 
-    final initialShare = await ContinuityService.instance.consumePendingShare();
-    if (initialShare != null) {
-      unawaited(
-        handoffToOmarchy(
-          text: initialShare.text,
-          subject: initialShare.subject,
-          packageName: initialShare.packageName,
-        ),
-      );
+    final initialPairUri = await ContinuityService.instance.consumePendingPairUri();
+    if (initialPairUri != null) {
+      unawaited(applyPairingUri(initialPairUri));
+    }
+
+    final initialShareRaw = await ContinuityService.instance.consumePendingShareRaw();
+    if (initialShareRaw != null) {
+      final ev = initialShareRaw['event']?.toString() ?? 'share';
+      if (ev == 'share_file') {
+        final b64 = initialShareRaw['dataBase64']?.toString() ?? '';
+        if (b64.isNotEmpty) {
+          unawaited(
+            uploadSharedFile(
+              initialShareRaw['filename']?.toString() ?? 'shared_file',
+              b64,
+            ),
+          );
+        }
+      } else {
+        final txt = initialShareRaw['text']?.toString() ?? '';
+        if (txt.isNotEmpty) {
+          unawaited(
+            handoffToOmarchy(
+              text: txt,
+              subject: initialShareRaw['subject']?.toString() ?? '',
+              packageName: initialShareRaw['packageName']?.toString() ?? '',
+            ),
+          );
+        }
+      }
     }
   }
 
@@ -328,6 +382,8 @@ class BridgeClient extends ChangeNotifier {
 
   Future<void> updateSettings(WizardSettings next) async {
     _settings = next;
+    _syncActiveColors();
+    _configureTlsOverrides();
     await _settingsStore.save(next);
     _lastError = null;
     if (next.demoMode) {
@@ -362,6 +418,7 @@ class BridgeClient extends ChangeNotifier {
       _selectedWorkspace = _hostStatus.workspaces.first;
     }
     _lastError = null;
+    unawaited(refreshAgentUsage());
     _setMood(_hasRunningTask ? WizardMood.casting : WizardMood.idle);
   }
 
@@ -447,7 +504,14 @@ class BridgeClient extends ChangeNotifier {
             if (statusMap['theme'] is Map<String, dynamic>) {
               _applyDesktopThemeJson(statusMap['theme'] as Map<String, dynamic>);
             }
+            final tsIp = statusMap['tailscale_ip']?.toString() ?? '';
+            if (tsIp.isNotEmpty) {
+              _detectedTailscaleIp = tsIp;
+            }
           }
+          unawaited(_reportDeviceBattery());
+          _startBatteryHeartbeat();
+          unawaited(refreshAgentUsage());
           if (data['tasks'] is List) {
             _tasks
               ..clear()
@@ -521,6 +585,43 @@ class BridgeClient extends ChangeNotifier {
           break;
         case 'theme.changed':
           _applyDesktopThemeJson(data);
+          break;
+        case 'continuity.clipboard_update':
+          final txt = data['text']?.toString() ?? '';
+          final rawHist = data['history'] as List<dynamic>?;
+          if (rawHist != null) {
+            _desktopClipboardHistory = rawHist.map((e) => e.toString()).toList();
+          }
+          if (txt.isNotEmpty) {
+            _desktopClipboardPreview = txt;
+            if (_settings.autoSyncClipboard) {
+              unawaited(Clipboard.setData(ClipboardData(text: txt)));
+              _continuityBanner = 'Auto-synced desktop clipboard to phone';
+            }
+          }
+          notifyListeners();
+          break;
+        case 'phone.reply':
+          final replyId = data['reply_id']?.toString() ?? '';
+          final replyText = data['text']?.toString() ?? '';
+          if (replyId.isNotEmpty && replyText.isNotEmpty) {
+            unawaited(
+              ContinuityService.instance.replyToNotification(replyId, replyText),
+            );
+            _recordContinuityActivity('message', 'Inline Reply Sent', replyText);
+          }
+          break;
+        case 'phone.ring':
+          final duration = (data['duration'] as num?)?.toInt() ?? 12;
+          _isRinging = true;
+          notifyListeners();
+          unawaited(ContinuityService.instance.ringPhone(duration: duration));
+          Timer(Duration(seconds: duration), () {
+            if (!_disposed && _isRinging) {
+              _isRinging = false;
+              notifyListeners();
+            }
+          });
           break;
       }
     } catch (e) {
@@ -895,6 +996,51 @@ class BridgeClient extends ChangeNotifier {
         );
         _systemMessage = 'Toggled Screensaver (demo)';
         break;
+      case 'toggle.dnd':
+        _systemState = s.copyWith(
+          toggles: s.toggles.copyWith(dnd: !s.toggles.dnd),
+        );
+        _systemMessage = 'Toggled Do Not Disturb (demo)';
+        break;
+      case 'capture.screenrecord_toggle':
+        _systemState = s.copyWith(
+          capture: CaptureState(recording: !s.capture.recording),
+        );
+        _systemMessage = _systemState.capture.recording
+            ? 'Started screen recording (demo)'
+            : 'Stopped screen recording (demo)';
+        break;
+      case 'reminder.add':
+        final mins = (params['minutes'] as num?)?.toInt() ?? 10;
+        final msg = params['message']?.toString() ?? 'Reminder';
+        final nextList = List<Map<String, dynamic>>.from(s.reminders.reminders)
+          ..add({'message': msg, 'remaining': '${mins}m'});
+        _systemState = s.copyWith(
+          reminders: RemindersState(
+            count: nextList.length,
+            active: true,
+            reminders: nextList,
+          ),
+        );
+        _systemMessage = 'Set reminder for ${mins}m (demo)';
+        break;
+      case 'reminder.clear':
+        _systemState = s.copyWith(reminders: const RemindersState());
+        _systemMessage = 'Cleared reminders (demo)';
+        break;
+      case 'bluetooth.connect':
+      case 'bluetooth.disconnect':
+        final addr = params['address']?.toString() ?? '';
+        final conn = action == 'bluetooth.connect';
+        _systemState = s.copyWith(
+          security: s.security.copyWith(
+            bluetoothDevices: s.security.bluetoothDevices
+                .map((d) => d.address == addr ? d.copyWith(connected: conn) : d)
+                .toList(),
+          ),
+        );
+        _systemMessage = '${conn ? 'Connected' : 'Disconnected'} Bluetooth device (demo)';
+        break;
       case 'theme.set':
         final name = params['name']?.toString() ?? s.theme.current;
         _systemState = s.copyWith(theme: s.theme.copyWith(current: name));
@@ -1108,6 +1254,13 @@ class BridgeClient extends ChangeNotifier {
       if (_desktopClipboardPreview.isEmpty) {
         _desktopClipboardPreview = 'https://wiki.archlinux.org/title/Hyprland';
       }
+      if (_desktopClipboardHistory.isEmpty) {
+        _desktopClipboardHistory = const [
+          'https://wiki.archlinux.org/title/Hyprland',
+          'systemctl --user status omarchy-wizard-bridge',
+          'omarchy-theme-set nord',
+        ];
+      }
       notifyListeners();
       return;
     }
@@ -1121,6 +1274,10 @@ class BridgeClient extends ChangeNotifier {
         if (clip != null) {
           _desktopClipboardPreview = clip['text']?.toString() ?? '';
         }
+        final rawHist = data['clipboard_history'] as List<dynamic>?;
+        if (rawHist != null) {
+          _desktopClipboardHistory = rawHist.map((e) => e.toString()).toList();
+        }
         final apps = data['apps'] as List<dynamic>?;
         if (apps != null && apps.isNotEmpty) {
           _continuityApps = apps.cast<Map<String, dynamic>>();
@@ -1132,6 +1289,194 @@ class BridgeClient extends ChangeNotifier {
         notifyListeners();
       }
     } catch (_) {}
+  }
+
+  Future<void> stopRinging() async {
+    _isRinging = false;
+    notifyListeners();
+    await ContinuityService.instance.stopRinging();
+  }
+
+  void _startBatteryHeartbeat() {
+    _batteryTimer?.cancel();
+    _batteryTimer = Timer.periodic(const Duration(seconds: 60), (_) {
+      if (!_disposed && !_settings.demoMode) {
+        unawaited(_reportDeviceBattery());
+      }
+    });
+  }
+
+  Future<void> _reportDeviceBattery() async {
+    final status = await ContinuityService.instance.getDeviceStatus();
+    if (status == null || status.battery < 0) return;
+    final ws = _ws;
+    if (ws != null && _connectionState == BridgeConnectionState.connected) {
+      try {
+        ws.add(jsonEncode({
+          'type': 'device.status',
+          'name': status.name,
+          'battery': status.battery,
+          'charging': status.charging,
+        }));
+      } catch (_) {}
+    }
+  }
+
+  Future<bool> applyPairingUri(String rawUri) async {
+    final parsed = Uri.tryParse(rawUri.trim());
+    if (parsed == null || parsed.scheme != 'omarchy-wizard') return false;
+    final host = parsed.queryParameters['host']?.trim() ?? '';
+    final port = int.tryParse(parsed.queryParameters['port'] ?? '') ?? 7842;
+    final token = parsed.queryParameters['token']?.trim() ?? '';
+    final tls = parsed.queryParameters['tls'] == '1';
+    final fp = parsed.queryParameters['fp']?.trim() ?? '';
+    final ts = parsed.queryParameters['ts']?.trim() ?? '';
+    if (host.isEmpty) return false;
+
+    final next = _settings.copyWith(
+      host: host,
+      port: port,
+      token: token,
+      demoMode: false,
+      useTls: tls,
+      tlsFingerprint: fp,
+      tailscaleHost: ts.isNotEmpty ? ts : _settings.tailscaleHost,
+    );
+    _continuityBanner = '✨ Paired with $host:$port${tls ? ' (TLS)' : ''}';
+    await updateSettings(next);
+    return true;
+  }
+
+  Future<List<DiscoveredBridge>> discoverLanBridges() async {
+    return ContinuityService.instance.discoverBridges();
+  }
+
+  Future<bool> uploadSharedFile(String filename, String dataBase64, {String? destDir}) async {
+    if (_settings.demoMode) {
+      _continuityBanner = 'Uploaded $filename to ~/Downloads (demo)';
+      _recordContinuityActivity('handoff', 'File Sent', filename);
+      return true;
+    }
+    try {
+      final resp = await http
+          .post(
+            Uri.parse('${_settings.httpBaseUrl}/api/files/upload'),
+            headers: _headers,
+            body: jsonEncode({
+              'filename': filename,
+              'data_base64': dataBase64,
+              if (destDir != null && destDir.isNotEmpty) 'dir': destDir,
+            }),
+          )
+          .timeout(const Duration(seconds: 25));
+      if (resp.statusCode < 400) {
+        final decoded = jsonDecode(resp.body) as Map<String, dynamic>;
+        final saved = decoded['name']?.toString() ?? filename;
+        _continuityBanner = '📥 Sent $saved to Omarchy!';
+        _recordContinuityActivity('handoff', 'File Sent to PC', saved);
+        return true;
+      }
+    } catch (_) {}
+    _continuityBanner = 'Failed to upload $filename.';
+    notifyListeners();
+    return false;
+  }
+
+  Future<String?> downloadFileToPhone(String remotePath, String filename) async {
+    if (_settings.demoMode) {
+      return 'Downloads/$filename (demo)';
+    }
+    try {
+      final uri = Uri.parse('${_settings.httpBaseUrl}/api/files/download')
+          .replace(queryParameters: {'path': remotePath});
+      final resp = await http
+          .get(uri, headers: _headers)
+          .timeout(const Duration(seconds: 25));
+      if (resp.statusCode == 200) {
+        final saved = await ContinuityService.instance.saveToDownloads(
+          filename,
+          resp.bodyBytes,
+        );
+        return saved;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  Future<Map<String, dynamic>?> captureScreenshot() async {
+    if (_settings.demoMode) {
+      _systemMessage = 'Captured demo screenshot';
+      notifyListeners();
+      return {'ok': true, 'name': 'demo-screenshot.png', 'path': '~/Pictures/Screenshots/demo-screenshot.png'};
+    }
+    try {
+      final resp = await http
+          .post(
+            Uri.parse('${_settings.httpBaseUrl}/api/system/action'),
+            headers: _headers,
+            body: jsonEncode({'action': 'capture.screenshot'}),
+          )
+          .timeout(const Duration(seconds: 10));
+      final decoded = jsonDecode(resp.body) as Map<String, dynamic>;
+      _systemMessage = decoded['message']?.toString();
+      if (decoded['state'] is Map<String, dynamic>) {
+        _systemState = SystemState.fromJson(decoded['state'] as Map<String, dynamic>);
+      }
+      notifyListeners();
+      return decoded;
+    } catch (err) {
+      _systemMessage = 'Screenshot failed: $err';
+      notifyListeners();
+      return null;
+    }
+  }
+
+  Future<void> refreshAgentUsage({bool force = false}) async {
+    if (_settings.demoMode) {
+      _agentUsage = const [
+        AgentUsageInfo(
+          id: 'agy',
+          name: 'Antigravity',
+          tierLabel: 'Pro',
+          todayPrompts: 14,
+          todayTokens: 1240000,
+          limits: [
+            AgentQuotaLimit(title: 'Session', percent: 18.0),
+            AgentQuotaLimit(title: 'Weekly', percent: 32.0),
+          ],
+        ),
+        AgentUsageInfo(
+          id: 'claude',
+          name: 'Claude',
+          tierLabel: 'Max',
+          todayPrompts: 6,
+          todayTokens: 480000,
+          limits: [AgentQuotaLimit(title: 'Session', percent: 12.0)],
+        ),
+      ];
+      notifyListeners();
+      return;
+    }
+    try {
+      final uri = Uri.parse('${_settings.httpBaseUrl}/api/agents/usage')
+          .replace(queryParameters: force ? {'force': '1'} : null);
+      final resp = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 6));
+      if (resp.statusCode == 200) {
+        final decoded = jsonDecode(resp.body) as Map<String, dynamic>;
+        final raw = decoded['agents'] as List<dynamic>? ?? const [];
+        _agentUsage = raw
+            .whereType<Map<String, dynamic>>()
+            .map(AgentUsageInfo.fromJson)
+            .toList();
+        notifyListeners();
+      }
+    } catch (_) {}
+  }
+
+  Future<void> updateAutoSyncClipboard(bool enabled) async {
+    _settings = _settings.copyWith(autoSyncClipboard: enabled);
+    await _settingsStore.save(_settings);
+    notifyListeners();
   }
 
   Future<bool> sendClipboardToOmarchy({String? explicitText, bool notify = true}) async {
@@ -1413,6 +1758,7 @@ class BridgeClient extends ChangeNotifier {
     _reconnectTimer?.cancel();
     _celebrateResetTimer?.cancel();
     _demoTimer?.cancel();
+    _batteryTimer?.cancel();
     unawaited(_disconnectSocket());
     super.dispose();
   }

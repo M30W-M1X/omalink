@@ -104,10 +104,39 @@ void main() {
     await tester.pump();
     expect(find.text('Omarchy Continuity'), findsOneWidget);
     expect(find.text('UNIVERSAL CLIPBOARD'), findsOneWidget);
-    expect(find.text('CONTINUE ON OMARCHY'), findsOneWidget);
 
     await tester.tap(find.text('Test Call'));
     await tester.pump(const Duration(milliseconds: 200));
     expect(find.textContaining('Sent call alert to Omarchy'), findsOneWidget);
+
+    await tester.scrollUntilVisible(
+      find.text('CONTINUE ON OMARCHY'),
+      250,
+      scrollable: find.byType(Scrollable).last,
+    );
+    expect(find.text('CONTINUE ON OMARCHY'), findsOneWidget);
+
+    // Pop Continuity, open Control -> Wireless Trackpad & Presentation Remote
+    await tester.pageBack();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pump();
+
+    await tester.tap(find.text('Control'));
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.scrollUntilVisible(
+      find.byTooltip('Wireless Trackpad & Slides'),
+      -350,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.tap(find.byTooltip('Wireless Trackpad & Slides'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pump();
+    expect(find.text('Wireless Trackpad'), findsOneWidget);
+    await tester.tap(find.byTooltip('Presentation Mode'));
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(find.text('NEXT SLIDE'), findsOneWidget);
   });
 }

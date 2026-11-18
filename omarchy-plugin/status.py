@@ -71,6 +71,38 @@ def copy_to_clipboard(text: str) -> bool:
     return False
 
 
+def post_json(url: str, token: str, payload: dict) -> dict | None:
+    headers = {"Content-Type": "application/json"}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    data = json.dumps(payload).encode("utf-8")
+    req = request.Request(url, data=data, headers=headers, method="POST")
+    try:
+        with request.urlopen(req, timeout=2.0) as resp:
+            raw = resp.read(128 * 1024).decode("utf-8", errors="replace")
+            out = json.loads(raw)
+            return out if isinstance(out, dict) else None
+    except (error.URLError, error.HTTPError, TimeoutError, json.JSONDecodeError, OSError):
+        return None
+
+
+def generate_qr_png(pair_uri: str) -> str:
+    if not pair_uri or not shutil.which("qrencode"):
+        return ""
+    out_path = Path(f"/tmp/omarchy-wizard-pair-qr-{os.getuid()}.png")
+    try:
+        subprocess.run(
+            ["qrencode", "-o", str(out_path), "-s", "6", "-m", "2", pair_uri],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=3,
+        )
+        return str(out_path)
+    except Exception:
+        return ""
+
+
 def get_status(port: int) -> dict:
     token = read_token()
     lan_ip = detect_lan_ip()
@@ -93,14 +125,25 @@ def get_status(port: int) -> dict:
                     "status": str(item.get("status", "running"))[:16],
                 })
 
+    phone = status_data.get("phone") if (status_data and isinstance(status_data.get("phone"), dict)) else {}
+    replyable = status_data.get("replyable_notification") if status_data else None
+    pair_uri = str(status_data.get("pair_uri", "")) if status_data else ""
+    qr_path = generate_qr_png(pair_uri) if active and pair_uri else ""
+
     return {
         "active": active,
         "hasToken": bool(token),
         "pairUrl": pair_url,
+        "pairUri": pair_uri,
+        "qrPath": qr_path,
         "port": port,
         "defaultAgent": str(status_data.get("default_agent", "agy"))[:24] if status_data else "agy",
         "connectedClients": int(status_data.get("connected_clients", 0)) if status_data else 0,
         "runningTasks": int(status_data.get("running_tasks", 0)) if status_data else 0,
+        "phoneName": str(phone.get("name", ""))[:32],
+        "phoneBattery": phone.get("battery"),
+        "phoneCharging": bool(phone.get("charging", False)),
+        "replyable": replyable if isinstance(replyable, dict) else None,
         "recentTasks": tasks,
     }
 
@@ -135,7 +178,24 @@ def main() -> None:
     parser.add_argument("--toggle", choices=["on", "off"], default=None)
     parser.add_argument("--copy-url", action="store_true")
     parser.add_argument("--copy-token", action="store_true")
+    parser.add_argument("--ring", action="store_true")
+    parser.add_argument("--reply-id", default="")
+    parser.add_argument("--reply-text", default="")
     args = parser.parse_args()
+
+    if args.ring:
+        res = post_json(f"http://127.0.0.1:{args.port}/api/continuity/ring", read_token(), {"duration": 12})
+        print(json.dumps({"action": "ring", "ok": bool(res and res.get("ok"))}))
+        return
+
+    if args.reply_id and args.reply_text:
+        res = post_json(
+            f"http://127.0.0.1:{args.port}/api/continuity/reply",
+            read_token(),
+            {"reply_id": args.reply_id, "text": args.reply_text},
+        )
+        print(json.dumps({"action": "reply", "ok": bool(res and res.get("ok"))}))
+        return
 
     if args.copy_url:
         ok = copy_to_clipboard(f"http://{detect_lan_ip()}:{args.port}")

@@ -1,9 +1,12 @@
+import 'dart:convert';
+
 import 'package:material_ui/material_ui.dart';
 
 import '../services/bridge_client.dart';
 import '../theme/wizard_theme.dart';
 import 'continuity_screen.dart';
 import 'desktop_screen.dart';
+import 'trackpad_screen.dart';
 
 class ControlPlaneScreen extends StatefulWidget {
   const ControlPlaneScreen({
@@ -19,6 +22,89 @@ class ControlPlaneScreen extends StatefulWidget {
 
 class _ControlPlaneScreenState extends State<ControlPlaneScreen> {
   double? _pendingVolume;
+
+  Future<void> _captureScreenshotDialog() async {
+    final res = await widget.client.captureScreenshot();
+    if (!mounted || res == null) return;
+    final b64 = res['preview_base64']?.toString() ?? '';
+    final path = res['path']?.toString() ?? '';
+    final name = res['name']?.toString() ?? 'screenshot.png';
+    if (b64.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(res['message']?.toString() ?? 'Screenshot captured')),
+      );
+      return;
+    }
+    final bytes = base64Decode(b64);
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: WizardColors.surfaceCard,
+        title: Text(name, style: TextStyle(color: WizardColors.textPrimary, fontSize: 15)),
+        content: ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: Image.memory(bytes, fit: BoxFit.contain),
+        ),
+        actions: [
+          if (path.isNotEmpty)
+            TextButton(
+              onPressed: () async {
+                final messenger = ScaffoldMessenger.of(context);
+                final saved = await widget.client.downloadFileToPhone(path, name);
+                if (!ctx.mounted) return;
+                Navigator.of(ctx).pop();
+                messenger.showSnackBar(
+                  SnackBar(content: Text(saved != null ? 'Saved to $saved' : 'Download failed')),
+                );
+              },
+              child: const Text('Save to Phone'),
+            ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Done'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _promptCustomReminder() async {
+    final minCtrl = TextEditingController(text: '15');
+    final msgCtrl = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: WizardColors.surfaceCard,
+        title: Text('New Omarchy Reminder', style: TextStyle(color: WizardColors.textPrimary)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: minCtrl,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Minutes'),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: msgCtrl,
+              decoration: const InputDecoration(labelText: 'Message (optional)'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Set')),
+        ],
+      ),
+    );
+    final mins = int.tryParse(minCtrl.text.trim()) ?? 15;
+    final msg = msgCtrl.text.trim();
+    minCtrl.dispose();
+    msgCtrl.dispose();
+    if (ok == true) {
+      await _dispatch('reminder.add', params: {'minutes': mins, 'message': msg});
+    }
+  }
 
   Future<void> _dispatch(String action, {Map<String, dynamic>? params}) async {
     final ok = await widget.client.sendControlAction(action, params: params);
@@ -116,6 +202,18 @@ class _ControlPlaneScreenState extends State<ControlPlaneScreen> {
                       ),
                     ],
                   ),
+                ),
+                IconButton(
+                  tooltip: 'Wireless Trackpad & Slides',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => TrackpadScreen(client: client),
+                      ),
+                    );
+                  },
+                  icon: Icon(Icons.touch_app_rounded, color: WizardColors.violetArcane),
                 ),
                 IconButton(
                   tooltip: 'Continuity & Phone Relay',
@@ -522,7 +620,9 @@ class _ControlPlaneScreenState extends State<ControlPlaneScreen> {
                         ),
                         _ActionChipButton(
                           icon: Icons.notifications_off_outlined,
-                          label: 'Toggle DND',
+                          label: s.toggles.dnd ? 'DND Active' : 'Toggle DND',
+                          active: s.toggles.dnd,
+                          activeColor: WizardColors.violetArcane,
                           onTap: () => _dispatch('toggle.dnd'),
                         ),
                         if (s.security.bluetoothPowered != null)
@@ -626,7 +726,16 @@ class _ControlPlaneScreenState extends State<ControlPlaneScreen> {
                         _ActionChipButton(
                           icon: Icons.screenshot_monitor_rounded,
                           label: 'Screenshot',
-                          onTap: () => _dispatch('system.screenshot'),
+                          onTap: _captureScreenshotDialog,
+                        ),
+                        _ActionChipButton(
+                          icon: s.capture.recording
+                              ? Icons.stop_circle_rounded
+                              : Icons.fiber_manual_record_rounded,
+                          label: s.capture.recording ? 'Stop Recording' : 'Screen Record',
+                          active: s.capture.recording,
+                          activeColor: WizardColors.coralError,
+                          onTap: () => _dispatch('capture.screenrecord_toggle'),
                         ),
                         _ActionChipButton(
                           icon: Icons.auto_awesome_rounded,
@@ -753,6 +862,112 @@ class _ControlPlaneScreenState extends State<ControlPlaneScreen> {
               ),
               const SizedBox(height: 12),
             ],
+
+            // Omarchy Reminders & Updates Card
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Expanded(child: _SectionTitle('REMINDERS & SYSTEM UPDATES')),
+                        if (s.updates.available)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: WizardColors.goldStarlight.withValues(alpha: 0.18),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              '${s.updates.count} UPDATE${s.updates.count == 1 ? '' : 'S'}',
+                              style: TextStyle(
+                                color: WizardColors.goldStarlight,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    if (s.reminders.reminders.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      for (final rem in s.reminders.reminders.take(4))
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 4),
+                          child: Row(
+                            children: [
+                              Icon(Icons.alarm_rounded, size: 14, color: WizardColors.cyanArcane),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  '${rem['message'] ?? rem['text'] ?? 'Reminder'} (${rem['remaining'] ?? rem['time'] ?? ''})',
+                                  style: TextStyle(color: WizardColors.textPrimary, fontSize: 12),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _ActionChipButton(
+                          icon: Icons.timer_outlined,
+                          label: '5m Reminder',
+                          onTap: () => _dispatch('reminder.add', params: {'minutes': 5, 'message': 'Quick reminder'}),
+                        ),
+                        _ActionChipButton(
+                          icon: Icons.add_alarm_rounded,
+                          label: 'Custom Reminder',
+                          onTap: _promptCustomReminder,
+                        ),
+                        if (s.reminders.count > 0)
+                          _ActionChipButton(
+                            icon: Icons.clear_all_rounded,
+                            label: 'Clear Reminders',
+                            active: true,
+                            activeColor: WizardColors.coralError,
+                            onTap: () => _dispatch('reminder.clear'),
+                          ),
+                        _ActionChipButton(
+                          icon: Icons.system_update_alt_rounded,
+                          label: 'Check Updates',
+                          onTap: () => _dispatch('updates.check'),
+                        ),
+                      ],
+                    ),
+                    if (s.security.bluetoothDevices.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      const _SectionTitle('PAIRED BLUETOOTH DEVICES'),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: s.security.bluetoothDevices.map((dev) {
+                          return _ActionChipButton(
+                            icon: dev.connected
+                                ? Icons.bluetooth_connected_rounded
+                                : Icons.bluetooth_rounded,
+                            label: dev.name,
+                            active: dev.connected,
+                            activeColor: WizardColors.emeraldSage,
+                            onTap: () => _dispatch(
+                              dev.connected ? 'bluetooth.disconnect' : 'bluetooth.connect',
+                              params: {'address': dev.address},
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
 
             // Power & Services Card
             Card(

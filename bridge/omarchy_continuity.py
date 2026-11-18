@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime, timezone
+import json
 import os
 from pathlib import Path
 import re
@@ -19,6 +20,12 @@ import omarchy_desktop
 _MAX_HISTORY = 50
 _RECENT_NOTIFICATIONS: list[dict[str, Any]] = []
 _RECENT_HANDOFFS: list[dict[str, Any]] = []
+_PHONE_DEVICE: dict[str, Any] = {
+    "name": "",
+    "battery": None,
+    "charging": False,
+    "updated_at": "",
+}
 
 _URL_RE = re.compile(r"((?:https?://|spotify:)[^\s<>\"']+)", re.IGNORECASE)
 
@@ -186,6 +193,8 @@ def send_desktop_notification_sync(
     category: str = "notification",
     urgency: str = "normal",
     caller: str = "",
+    can_reply: bool = False,
+    reply_id: str = "",
 ) -> dict[str, Any]:
     """Display a notification or incoming call popup on the Omarchy desktop via notify-send."""
     env = resolve_session_env()
@@ -258,10 +267,72 @@ def send_desktop_notification_sync(
         "title": summary,
         "body": popup_body,
         "notified": notified,
+        "can_reply": bool(can_reply and reply_id.strip()),
+        "reply_id": reply_id.strip(),
     }
     _RECENT_NOTIFICATIONS.insert(0, entry)
     del _RECENT_NOTIFICATIONS[_MAX_HISTORY:]
     return entry
+
+
+def update_phone_device_state(
+    *,
+    name: str = "",
+    battery: int | None = None,
+    charging: bool = False,
+) -> dict[str, Any]:
+    if name.strip():
+        _PHONE_DEVICE["name"] = name.strip()[:48]
+    if battery is not None:
+        _PHONE_DEVICE["battery"] = max(0, min(100, int(battery)))
+    _PHONE_DEVICE["charging"] = bool(charging)
+    _PHONE_DEVICE["updated_at"] = _utc_now()
+    return dict(_PHONE_DEVICE)
+
+
+def get_phone_device_state() -> dict[str, Any]:
+    return dict(_PHONE_DEVICE)
+
+
+def latest_replyable_notification() -> dict[str, Any] | None:
+    for item in _RECENT_NOTIFICATIONS:
+        if item.get("can_reply") and item.get("reply_id"):
+            return dict(item)
+    return None
+
+
+def clipboard_history_path() -> Path:
+    return Path.home() / ".local" / "state" / "omarchy" / "clipboard-history.json"
+
+
+def clipboard_history_mtime() -> float:
+    p = clipboard_history_path()
+    try:
+        return p.stat().st_mtime if p.is_file() else 0.0
+    except OSError:
+        return 0.0
+
+
+def read_clipboard_history_sync(limit: int = 20) -> list[str]:
+    """Read Omarchy's native clipboard history JSON entries."""
+    p = clipboard_history_path()
+    if not p.is_file():
+        return []
+    try:
+        raw = json.loads(p.read_text(encoding="utf-8", errors="replace"))
+        if not isinstance(raw, list):
+            return []
+        items: list[str] = []
+        for entry in raw:
+            if isinstance(entry, dict) and entry.get("type") == "text":
+                txt = str(entry.get("text", "")).strip()
+                if txt and txt not in items:
+                    items.append(txt[:2000])
+            if len(items) >= limit:
+                break
+        return items
+    except Exception:
+        return []
 
 
 def set_clipboard_sync(text: str, notify: bool = False) -> dict[str, Any]:
@@ -443,13 +514,17 @@ async def handoff_to_desktop(**kwargs: Any) -> dict[str, Any]:
 
 
 async def read_continuity_state() -> dict[str, Any]:
-    clip, apps = await asyncio.gather(
+    clip, apps, history = await asyncio.gather(
         get_clipboard(),
         asyncio.to_thread(detect_available_apps),
+        asyncio.to_thread(read_clipboard_history_sync, 20),
     )
     return {
         "clipboard": clip,
+        "clipboard_history": history,
         "apps": apps,
+        "phone": get_phone_device_state(),
+        "replyable_notification": latest_replyable_notification(),
         "recent_notifications": list(_RECENT_NOTIFICATIONS[:20]),
         "recent_handoffs": list(_RECENT_HANDOFFS[:20]),
     }

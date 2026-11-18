@@ -652,6 +652,104 @@ class BridgeTests(unittest.TestCase):
         finally:
             await bridge.stop()
 
+    def test_v2_file_transfer_reply_ring_pairing_and_usage(self) -> None:
+        asyncio.run(self._run_v2_endpoints_test())
+
+    async def _run_v2_endpoints_test(self) -> None:
+        bridge = OmarchyWizardBridge(host="127.0.0.1", port=0, token="v2-tok")
+        await bridge.start()
+        port = bridge.bound_port
+        try:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                # 1. File upload & download roundtrip
+                raw = b"Hello Omarchy AirDrop 2.0!"
+                code, up = await asyncio.to_thread(
+                    _http_json,
+                    f"http://127.0.0.1:{port}/api/files/upload",
+                    "POST",
+                    "v2-tok",
+                    {
+                        "filename": "note.bin",
+                        "data_base64": base64.b64encode(raw).decode("ascii"),
+                        "dir": tmpdir,
+                    },
+                )
+                self.assertEqual(code, 201)
+                self.assertTrue(up["ok"])
+                uploaded_path = up["path"]
+                self.assertTrue(Path(uploaded_path).is_file())
+
+                def _download(url: str) -> bytes:
+                    req = request.Request(url, headers={"Authorization": "Bearer v2-tok"})
+                    with request.urlopen(req, timeout=5) as r:
+                        return r.read()
+
+                dl = await asyncio.to_thread(
+                    _download,
+                    f"http://127.0.0.1:{port}/api/files/download?path={quote(uploaded_path)}",
+                )
+                self.assertEqual(dl, raw)
+
+                # 2. Phone battery telemetry + Find My Phone ring + inline reply
+                code, dev = await asyncio.to_thread(
+                    _http_json,
+                    f"http://127.0.0.1:{port}/api/continuity/device",
+                    "POST",
+                    "v2-tok",
+                    {"name": "Pixel 9", "battery": 88, "charging": True},
+                )
+                self.assertEqual(code, 200)
+                self.assertEqual(dev["phone"]["battery"], 88)
+                self.assertTrue(dev["phone"]["charging"])
+
+                code, ring = await asyncio.to_thread(
+                    _http_json,
+                    f"http://127.0.0.1:{port}/api/continuity/ring",
+                    "POST",
+                    "v2-tok",
+                    {"duration": 10},
+                )
+                self.assertEqual(code, 200)
+                self.assertTrue(ring["ok"])
+
+                code, rep = await asyncio.to_thread(
+                    _http_json,
+                    f"http://127.0.0.1:{port}/api/continuity/reply",
+                    "POST",
+                    "v2-tok",
+                    {"reply_id": "msg-1", "text": "On my way!"},
+                )
+                self.assertEqual(code, 200)
+                self.assertTrue(rep["ok"])
+
+                # 3. Pairing info + URI
+                code, pair = await asyncio.to_thread(
+                    _http_json,
+                    f"http://127.0.0.1:{port}/api/pairing/info",
+                    "GET",
+                    "v2-tok",
+                )
+                self.assertEqual(code, 200)
+                self.assertTrue(pair["pair_uri"].startswith("omarchy-wizard://pair?"))
+                self.assertIn("token=v2-tok", pair["pair_uri"])
+
+                # 4. Agent usage endpoint
+                with mock.patch.object(
+                    omarchy_control,
+                    "read_agents_usage_sync",
+                    return_value=[{"id": "agy", "name": "Antigravity", "today_prompts": 5, "limits": []}],
+                ):
+                    code, usage = await asyncio.to_thread(
+                        _http_json,
+                        f"http://127.0.0.1:{port}/api/agents/usage",
+                        "GET",
+                        "v2-tok",
+                    )
+                    self.assertEqual(code, 200)
+                    self.assertEqual(usage["agents"][0]["id"], "agy")
+        finally:
+            await bridge.stop()
+
 
 if __name__ == "__main__":
     unittest.main()

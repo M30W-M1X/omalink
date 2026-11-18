@@ -9,15 +9,22 @@ native Omarchy CLI scripts and standard desktop utilities.
 from __future__ import annotations
 
 import asyncio
+import base64
+from datetime import datetime, timezone
 import json
 import os
 import re
 import shutil
 import socket
 import subprocess
+import time
 import tomllib
 from pathlib import Path
 from typing import Any
+
+
+_UPDATES_CACHE: dict[str, Any] = {"checked_at": 0.0, "available": False, "count": 0, "items": []}
+_USAGE_CACHE: dict[str, Any] = {"checked_at": 0.0, "agents": []}
 
 
 _SELECTED_MEDIA_BUS: str = ""
@@ -444,12 +451,14 @@ def _read_toggles_state() -> dict[str, Any]:
         rc, _, _ = _run_cmd(["omarchy-hyprland-toggle-enabled", "no-animations"], timeout=1.5)
         animations_off = (rc == 0)
 
+    dnd = _toggle_flag_exists("notification-silencing") or _toggle_flag_exists("dnd")
     return {
         "nightlight": nightlight,
         "stay_awake": stay_awake,
         "bar_hidden": _toggle_flag_exists("bar-off"),
         "screensaver_off": _toggle_flag_exists("screensaver-off"),
         "animations_off": animations_off,
+        "dnd": dnd,
     }
 
 
@@ -561,6 +570,174 @@ def _read_theme_state() -> dict[str, Any]:
     return {"current": current, "themes": themes, "palette": palette}
 
 
+def detect_tailscale_ip() -> str:
+    if not shutil.which("tailscale"):
+        return ""
+    rc, out, _ = _run_cmd(["tailscale", "ip", "-4"], timeout=1.5)
+    if rc == 0 and out:
+        return out.splitlines()[0].strip()
+    return ""
+
+
+def _read_bluetooth_devices() -> list[dict[str, Any]]:
+    """Read paired BlueZ devices quickly over D-Bus without hanging bluetoothctl."""
+    if not shutil.which("busctl"):
+        return []
+    rc, out, _ = _run_cmd(
+        [
+            "busctl",
+            "--system",
+            "--json=short",
+            "call",
+            "org.bluez",
+            "/",
+            "org.freedesktop.DBus.ObjectManager",
+            "GetManagedObjects",
+        ],
+        timeout=2.0,
+    )
+    if rc != 0 or not out.startswith("{"):
+        return []
+    try:
+        parsed = json.loads(out)
+        data = parsed.get("data")
+        if not isinstance(data, list) or not data or not isinstance(data[0], dict):
+            return []
+        devices: list[dict[str, Any]] = []
+        for obj_path, ifaces in data[0].items():
+            if not isinstance(ifaces, dict) or "org.bluez.Device1" not in ifaces:
+                continue
+            props = ifaces["org.bluez.Device1"]
+            if not isinstance(props, dict):
+                continue
+
+            def _val(key: str, default: Any = None) -> Any:
+                entry = props.get(key)
+                if isinstance(entry, dict) and "data" in entry:
+                    return entry["data"]
+                return default
+
+            addr = str(_val("Address", "") or "").strip()
+            paired = bool(_val("Paired", False))
+            if not addr or not paired:
+                continue
+            name = str(_val("Alias", "") or _val("Name", "") or addr).strip()
+            devices.append({
+                "address": addr,
+                "name": name,
+                "connected": bool(_val("Connected", False)),
+                "icon": str(_val("Icon", "") or ""),
+            })
+        devices.sort(key=lambda d: (not d["connected"], d["name"].lower()))
+        return devices[:20]
+    except Exception:
+        return []
+
+
+def _read_capture_state() -> dict[str, Any]:
+    recording = False
+    if shutil.which("omarchy-capture-screenrecording"):
+        rc, out, _ = _run_cmd(["omarchy-capture-screenrecording", "--status"], timeout=1.5)
+        if rc == 0:
+            lower = out.strip().lower()
+            if lower.startswith("{"):
+                try:
+                    j = json.loads(out)
+                    recording = bool(j.get("recording") or j.get("active") or j.get("enabled"))
+                except Exception:
+                    pass
+            elif lower in {"1", "true", "recording", "active"}:
+                recording = True
+    return {"recording": recording}
+
+
+def _read_reminders_state() -> dict[str, Any]:
+    if not shutil.which("omarchy-reminder"):
+        return {"count": 0, "active": False, "reminders": []}
+    rc, out, _ = _run_cmd(["omarchy-reminder", "show", "--json"], timeout=2.0)
+    if rc == 0 and out.startswith("{"):
+        try:
+            data = json.loads(out)
+            if isinstance(data, dict):
+                items = data.get("reminders")
+                return {
+                    "count": int(data.get("count", len(items) if isinstance(items, list) else 0)),
+                    "active": bool(data.get("active", False)),
+                    "reminders": items if isinstance(items, list) else [],
+                }
+        except Exception:
+            pass
+    return {"count": 0, "active": False, "reminders": []}
+
+
+def _read_updates_state(force: bool = False) -> dict[str, Any]:
+    now = time.monotonic()
+    if not force and (now - float(_UPDATES_CACHE["checked_at"])) < 900.0:
+        return {
+            "available": bool(_UPDATES_CACHE["available"]),
+            "count": int(_UPDATES_CACHE["count"]),
+            "items": list(_UPDATES_CACHE["items"]),
+        }
+    items: list[str] = []
+    if shutil.which("omarchy-update-available"):
+        rc, out, _ = _run_cmd(["omarchy-update-available"], timeout=4.0)
+        if rc == 0 and out:
+            items = [line.strip() for line in out.splitlines() if line.strip()][:10]
+    _UPDATES_CACHE["checked_at"] = now
+    _UPDATES_CACHE["available"] = len(items) > 0
+    _UPDATES_CACHE["count"] = len(items)
+    _UPDATES_CACHE["items"] = items
+    return {"available": len(items) > 0, "count": len(items), "items": items}
+
+
+def read_agents_usage_sync(force: bool = False) -> list[dict[str, Any]]:
+    """Collect Omarchy AI agent usage & quota summaries (cached 60s)."""
+    now = time.monotonic()
+    if not force and (now - float(_USAGE_CACHE["checked_at"])) < 60.0:
+        return list(_USAGE_CACHE["agents"])
+
+    results: list[dict[str, Any]] = []
+    for agent_id in ("agy", "claude", "codex", "kimi", "copilot"):
+        script = shutil.which(f"omarchy-agent-usage-{agent_id}")
+        if not script:
+            continue
+        rc, out, _ = _run_cmd([script], timeout=3.5)
+        if rc != 0 or not out.startswith("{"):
+            continue
+        try:
+            raw = json.loads(out)
+            if not isinstance(raw, dict):
+                continue
+            if not raw.get("ready") and not raw.get("hasLocalStats"):
+                continue
+            limits = []
+            for lim in raw.get("limits") or []:
+                if isinstance(lim, dict):
+                    limits.append({
+                        "title": str(lim.get("title") or lim.get("label") or "Quota"),
+                        "percent": float(lim.get("percent", 0.0)),
+                        "resets_at": str(lim.get("resetsAt") or ""),
+                    })
+            results.append({
+                "id": str(raw.get("id") or agent_id),
+                "name": str(raw.get("name") or agent_id.capitalize()),
+                "tier_label": str(raw.get("tierLabel") or ""),
+                "today_prompts": int(raw.get("todayPrompts") or 0),
+                "today_tokens": int(raw.get("todayTotalTokens") or 0),
+                "limits": limits,
+            })
+        except Exception:
+            continue
+
+    _USAGE_CACHE["checked_at"] = now
+    _USAGE_CACHE["agents"] = results
+    return results
+
+
+async def read_agents_usage(force: bool = False) -> list[dict[str, Any]]:
+    return await asyncio.to_thread(read_agents_usage_sync, force)
+
+
 def _read_security_state() -> dict[str, Any]:
     passwordless_sudo = False
     if shutil.which("omarchy-sudo-passwordless"):
@@ -588,7 +765,9 @@ def _read_security_state() -> dict[str, Any]:
     return {
         "passwordless_sudo": passwordless_sudo,
         "bluetooth_powered": bluetooth_powered,
+        "bluetooth_devices": _read_bluetooth_devices(),
         "tailscale_active": tailscale_active,
+        "tailscale_ip": detect_tailscale_ip() if tailscale_active else "",
     }
 
 
@@ -615,6 +794,9 @@ def read_system_state_sync() -> dict[str, Any]:
         "toggles": _read_toggles_state(),
         "theme": _read_theme_state(),
         "security": _read_security_state(),
+        "capture": _read_capture_state(),
+        "reminders": _read_reminders_state(),
+        "updates": _read_updates_state(force=False),
     }
 
 
@@ -843,9 +1025,87 @@ def execute_control_action_sync(action: str, params: dict[str, Any] | None = Non
         ok = _spawn_detached(["omarchy-launch-screensaver"])
         return _action_result(ok, "Launched Omarchy screensaver" if ok else "Failed to launch screensaver")
 
-    if action == "system.screenshot":
+    if action in {"system.screenshot", "capture.screenshot"}:
+        shots_dir = Path.home() / "Pictures" / "Screenshots"
+        shots_dir.mkdir(parents=True, exist_ok=True)
+        ts_str = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+        dest = shots_dir / f"omarchy-wizard-{ts_str}.png"
+        if shutil.which("grim"):
+            rc, _, err = _run_cmd(["grim", str(dest)], timeout=5.0)
+            if rc == 0 and dest.is_file():
+                preview_b64 = ""
+                try:
+                    p_res = subprocess.run(
+                        ["grim", "-t", "jpeg", "-q", "60", "-s", "0.30", "-"],
+                        capture_output=True,
+                        timeout=4.0,
+                    )
+                    if p_res.returncode == 0 and p_res.stdout:
+                        preview_b64 = base64.b64encode(p_res.stdout).decode("ascii")
+                except Exception:
+                    pass
+                res = _action_result(True, f"Saved screenshot {dest.name}", state=read_system_state_sync())
+                res["path"] = str(dest)
+                res["name"] = dest.name
+                if preview_b64:
+                    res["preview_base64"] = preview_b64
+                return res
+            return _action_result(False, f"Screenshot failed: {err}")
         ok = _spawn_detached(["omarchy-capture-screenshot", "smart"])
         return _action_result(ok, "Triggered Omarchy screenshot capture" if ok else "Failed to capture screenshot")
+
+    if action == "capture.screenrecord_toggle":
+        is_rec = _read_capture_state()["recording"]
+        if is_rec:
+            ok, msg = _run_omarchy_action(
+                ["omarchy-capture-screenrecording", "--stop-recording"],
+                "Stopped screen recording",
+            )
+            return _action_result(ok, msg, state=read_system_state_sync())
+        ok = _spawn_detached(
+            ["omarchy-capture-screenrecording", "--fullscreen", "--with-desktop-audio"]
+        )
+        return _action_result(
+            ok,
+            "Started fullscreen screen recording" if ok else "Failed to start screen recording",
+            state=read_system_state_sync(),
+        )
+
+    if action == "reminder.add":
+        try:
+            minutes = max(1, min(1440, int(params.get("minutes", 10))))
+        except (TypeError, ValueError):
+            return _action_result(False, "Invalid reminder minutes")
+        message = str(params.get("message", "")).strip()[:160]
+        cmd = ["omarchy-reminder", str(minutes)]
+        if message:
+            cmd.append(message)
+        ok, msg = _run_omarchy_action(cmd, f"Reminder set for {minutes}m")
+        return _action_result(ok, msg, state=read_system_state_sync())
+
+    if action == "reminder.clear":
+        ok, msg = _run_omarchy_action(["omarchy-reminder", "clear"], "Cleared reminders")
+        return _action_result(ok, msg, state=read_system_state_sync())
+
+    if action in {"bluetooth.connect", "bluetooth.disconnect"}:
+        address = str(params.get("address", "")).strip()
+        if not re.fullmatch(r"([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}", address):
+            return _action_result(False, "Invalid Bluetooth MAC address")
+        verb = "connect" if action == "bluetooth.connect" else "disconnect"
+        ok, msg = _run_omarchy_action(
+            ["omarchy-bluetooth-device", verb, address],
+            f"{verb.capitalize()}ed Bluetooth device {address}",
+        )
+        return _action_result(ok, msg, state=read_system_state_sync())
+
+    if action == "updates.check":
+        updates = _read_updates_state(force=True)
+        msg = (
+            f"{updates['count']} update(s) available"
+            if updates["available"]
+            else "Omarchy is up to date"
+        )
+        return _action_result(True, msg, state=read_system_state_sync())
 
     if action == "security.sudo_prompt":
         duration = str(params.get("duration", "15")).strip()

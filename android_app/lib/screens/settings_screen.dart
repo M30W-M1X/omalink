@@ -1,6 +1,8 @@
+import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../services/bridge_client.dart';
+import '../services/continuity_service.dart';
 import '../services/notification_service.dart';
 import '../theme/wizard_theme.dart';
 
@@ -20,9 +22,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late final TextEditingController _hostController;
   late final TextEditingController _portController;
   late final TextEditingController _tokenController;
+  late final TextEditingController _fpController;
   late bool _demoMode;
   late bool _notifyOnComplete;
+  late bool _useTls;
   bool _obscureToken = true;
+  bool _discovering = false;
+  List<DiscoveredBridge> _discovered = const [];
 
   @override
   void initState() {
@@ -31,8 +37,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _hostController = TextEditingController(text: s.host);
     _portController = TextEditingController(text: s.port.toString());
     _tokenController = TextEditingController(text: s.token);
+    _fpController = TextEditingController(text: s.tlsFingerprint);
     _demoMode = s.demoMode;
     _notifyOnComplete = s.notifyOnComplete;
+    _useTls = s.useTls;
   }
 
   @override
@@ -40,6 +48,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _hostController.dispose();
     _portController.dispose();
     _tokenController.dispose();
+    _fpController.dispose();
     super.dispose();
   }
 
@@ -51,6 +60,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       token: _tokenController.text.trim(),
       demoMode: _demoMode,
       notifyOnComplete: _notifyOnComplete,
+      useTls: _useTls,
+      tlsFingerprint: _fpController.text.trim(),
     );
     await widget.client.updateSettings(next);
     if (!mounted) return;
@@ -59,7 +70,49 @@ class _SettingsScreenState extends State<SettingsScreen> {
         content: Text(
           _demoMode
               ? 'Demo Familiar Mode enabled ✨'
-              : 'Connecting to Omarchy bridge at ${next.host}:${next.port}...',
+              : 'Connecting to Omarchy bridge at ${next.httpBaseUrl}...',
+        ),
+      ),
+    );
+  }
+
+  Future<void> _discoverLan() async {
+    setState(() => _discovering = true);
+    final found = await widget.client.discoverLanBridges();
+    if (!mounted) return;
+    setState(() {
+      _discovering = false;
+      _discovered = found;
+    });
+    if (found.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No LAN bridges found via mDNS — check Wi-Fi or scan QR.')),
+      );
+    }
+  }
+
+  Future<void> _pastePairUri() async {
+    final clip = await Clipboard.getData(Clipboard.kTextPlain);
+    final raw = clip?.text?.trim() ?? '';
+    final ok = await widget.client.applyPairingUri(raw);
+    if (!mounted) return;
+    if (ok) {
+      final s = widget.client.settings;
+      setState(() {
+        _hostController.text = s.host;
+        _portController.text = s.port.toString();
+        _tokenController.text = s.token;
+        _fpController.text = s.tlsFingerprint;
+        _useTls = s.useTls;
+        _demoMode = false;
+      });
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          ok
+              ? 'Paired via omarchy-wizard:// URI ✨'
+              : 'Copy an omarchy-wizard://pair?... URI or scan the Omarchy top bar QR.',
         ),
       ),
     );
@@ -158,7 +211,101 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _discovering ? null : _discoverLan,
+                          icon: _discovering
+                              ? const SizedBox(
+                                  width: 14,
+                                  height: 14,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : const Icon(Icons.radar_rounded, size: 17),
+                          label: const Text('Scan LAN (mDNS)'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _pastePairUri,
+                          icon: const Icon(Icons.qr_code_2_rounded, size: 17),
+                          label: const Text('Paste Pair URI'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (_discovered.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      children: _discovered.map((b) {
+                        return ActionChip(
+                          avatar: Icon(Icons.computer_rounded, size: 16, color: WizardColors.cyanArcane),
+                          label: Text('${b.name} (${b.host}:${b.port})'),
+                          onPressed: () {
+                            setState(() {
+                              _demoMode = false;
+                              _hostController.text = b.host;
+                              _portController.text = b.port.toString();
+                              _useTls = b.tls;
+                              _fpController.text = b.fingerprint;
+                            });
+                          },
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                  if (widget.client.detectedTailscaleIp.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: ActionChip(
+                        avatar: Icon(Icons.vpn_lock_rounded, size: 16, color: WizardColors.emeraldSage),
+                        label: Text('Use Tailscale IP (${widget.client.detectedTailscaleIp})'),
+                        onPressed: () {
+                          setState(() {
+                            _demoMode = false;
+                            _hostController.text = widget.client.detectedTailscaleIp;
+                          });
+                        },
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 6),
+                  Text(
+                    'Tip: Open the Wizard icon in your Omarchy top bar → QR, and scan with your phone camera for 1-tap pairing.',
+                    style: TextStyle(color: WizardColors.textMuted, fontSize: 11),
+                  ),
+                  const SizedBox(height: 8),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(
+                      'TLS Encryption (HTTPS / WSS)',
+                      style: TextStyle(color: WizardColors.textPrimary, fontSize: 14),
+                    ),
+                    subtitle: Text(
+                      'Enable if bridge runs with --tls (optional SHA-256 cert pin).',
+                      style: TextStyle(color: WizardColors.textMuted, fontSize: 11),
+                    ),
+                    value: _useTls,
+                    onChanged: _demoMode ? null : (v) => setState(() => _useTls = v),
+                  ),
+                  if (_useTls) ...[
+                    TextField(
+                      controller: _fpController,
+                      enabled: !_demoMode,
+                      decoration: const InputDecoration(
+                        labelText: 'Pinned TLS SHA-256 Fingerprint (optional)',
+                        hintText: 'Auto-filled from QR code',
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                  ],
+                  const SizedBox(height: 6),
                   FilledButton.icon(
                     onPressed: _saveAndConnect,
                     style: FilledButton.styleFrom(

@@ -173,6 +173,85 @@ class _WizardHomeScreenState extends State<WizardHomeScreen> {
                     onTap: client.triggerWizardBoop,
                   ),
                 ),
+                if (client.isRinging) ...[
+                  const SizedBox(height: 10),
+                  Card(
+                    color: WizardColors.coralError.withValues(alpha: 0.2),
+                    child: ListTile(
+                      leading: Icon(Icons.notifications_active, color: WizardColors.coralError),
+                      title: Text(
+                        'Omarchy is ringing your phone!',
+                        style: TextStyle(color: WizardColors.textPrimary, fontWeight: FontWeight.w700),
+                      ),
+                      trailing: FilledButton(
+                        onPressed: client.stopRinging,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: WizardColors.coralError,
+                          foregroundColor: WizardColors.obsidian,
+                        ),
+                        child: const Text('Stop'),
+                      ),
+                    ),
+                  ),
+                ],
+                if (client.agentUsage.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  'OMARCHY AI USAGE TODAY',
+                                  style: TextStyle(
+                                    color: WizardColors.textMuted,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 1.0,
+                                  ),
+                                ),
+                              ),
+                              InkWell(
+                                onTap: () => client.refreshAgentUsage(force: true),
+                                child: Icon(Icons.refresh_rounded, size: 16, color: WizardColors.cyanArcane),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 6,
+                            children: client.agentUsage.take(3).map((u) {
+                              final firstLimit = u.limits.isNotEmpty ? u.limits.first : null;
+                              final quotaStr = firstLimit != null
+                                  ? ' · ${firstLimit.percent.round()}%'
+                                  : '';
+                              return Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                decoration: BoxDecoration(
+                                  color: WizardColors.surfaceElevated,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Text(
+                                  '${u.name}: ${u.todayPrompts} prompts$quotaStr',
+                                  style: TextStyle(
+                                    color: WizardColors.textPrimary,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 16),
                 if (client.lastError != null) ...[
                   Container(

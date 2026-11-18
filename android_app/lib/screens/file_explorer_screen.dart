@@ -176,6 +176,26 @@ class _FileExplorerScreenState extends State<FileExplorerScreen> {
                         onPressed: () => widget.client.openFileOnDesktop(preview.path),
                       ),
                       ActionChip(
+                        avatar: Icon(Icons.download_rounded, size: 16, color: WizardColors.emeraldSage),
+                        label: const Text('Download'),
+                        onPressed: () async {
+                          final messenger = ScaffoldMessenger.of(context);
+                          final saved = await widget.client.downloadFileToPhone(
+                            preview.path,
+                            preview.name,
+                          );
+                          messenger.showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                saved != null
+                                    ? 'Saved to $saved'
+                                    : 'Download failed for ${preview.name}',
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                      ActionChip(
                         avatar: Icon(Icons.auto_fix_high, size: 16, color: WizardColors.cyanArcane),
                         label: const Text('Ask Wizard'),
                         onPressed: () {

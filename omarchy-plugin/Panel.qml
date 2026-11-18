@@ -19,9 +19,15 @@ Panel {
   property bool bridgeActive: false
   property bool hasToken: false
   property string pairUrl: "http://127.0.0.1:7842"
+  property string qrPath: ""
+  property bool showQr: false
   property string defaultAgent: "agy"
   property int connectedClients: 0
   property int runningTasks: 0
+  property string phoneName: ""
+  property int phoneBattery: -1
+  property bool phoneCharging: false
+  property var replyable: null
   property var recentTasks: []
   property string flashText: ""
   property bool powerBusy: false
@@ -44,9 +50,10 @@ Panel {
 
   readonly property string barTooltip: {
     if (!bridgeActive) return "Omarchy Wizard · Bridge Offline"
-    if (runningTasks > 0) return "Omarchy Wizard · Casting (" + runningTasks + " running)"
-    if (connectedClients > 0) return "Omarchy Wizard · Connected (" + connectedClients + " device)"
-    return "Omarchy Wizard · Bridge Active"
+    var bat = phoneBattery >= 0 ? (" · Phone " + phoneBattery + "%" + (phoneCharging ? " ⚡" : "")) : ""
+    if (runningTasks > 0) return "Omarchy Wizard · Casting (" + runningTasks + " running)" + bat
+    if (connectedClients > 0) return "Omarchy Wizard · Connected (" + connectedClients + " device)" + bat
+    return "Omarchy Wizard · Bridge Active" + bat
   }
 
   function applySnapshot(raw) {
@@ -56,9 +63,14 @@ Panel {
       bridgeActive = parsed.active === true
       hasToken = parsed.hasToken === true
       if (parsed.pairUrl) pairUrl = String(parsed.pairUrl)
+      qrPath = parsed.qrPath ? String(parsed.qrPath) : ""
       if (parsed.defaultAgent) defaultAgent = String(parsed.defaultAgent)
       connectedClients = Number(parsed.connectedClients || 0)
       runningTasks = Number(parsed.runningTasks || 0)
+      phoneName = parsed.phoneName ? String(parsed.phoneName) : ""
+      phoneBattery = (parsed.phoneBattery !== null && parsed.phoneBattery !== undefined) ? Number(parsed.phoneBattery) : -1
+      phoneCharging = parsed.phoneCharging === true
+      replyable = parsed.replyable || null
       recentTasks = Array.isArray(parsed.recentTasks) ? parsed.recentTasks : []
     } catch (e) {}
   }
@@ -86,6 +98,23 @@ Panel {
   function copyToken() {
     if (helperPath === "" || copyProc.running) return
     copyProc.command = ["python3", helperPath, "--port", String(bridgePort), "--copy-token"]
+    copyProc.running = true
+  }
+
+  function ringPhone() {
+    if (helperPath === "" || copyProc.running) return
+    copyProc.command = ["python3", helperPath, "--port", String(bridgePort), "--ring"]
+    copyProc.running = true
+  }
+
+  function sendQuickReply(replyText) {
+    if (helperPath === "" || !replyable || !replyable.reply_id || replyText.trim() === "") return
+    if (copyProc.running) return
+    copyProc.command = [
+      "python3", helperPath, "--port", String(bridgePort),
+      "--reply-id", String(replyable.reply_id),
+      "--reply-text", replyText.trim()
+    ]
     copyProc.running = true
   }
 
@@ -137,6 +166,8 @@ Panel {
           var res = JSON.parse(text)
           if (res.copied === "url") root.showFlash("Copied Pair URL to clipboard")
           else if (res.copied === "token") root.showFlash("Copied Pairing Token to clipboard")
+          else if (res.action === "ring") root.showFlash(res.ok ? "Ringing connected phone..." : "No phone connected")
+          else if (res.action === "reply") root.showFlash(res.ok ? "Reply sent to phone" : "Reply failed")
         } catch (e) {}
       }
     }
@@ -285,7 +316,7 @@ Panel {
 
           Row {
             width: parent.width
-            spacing: Style.space(8)
+            spacing: Style.space(6)
 
             Button {
               text: "Copy URL"
@@ -296,12 +327,110 @@ Panel {
             }
 
             Button {
-              text: "Copy Token"
+              text: "Token"
               enabled: root.hasToken
               foreground: root.foreground
               fontFamily: root.fontFamily
               bordered: true
               onClicked: root.copyToken()
+            }
+
+            Button {
+              text: root.showQr ? "Hide QR" : "QR"
+              enabled: root.qrPath !== ""
+              foreground: root.foreground
+              fontFamily: root.fontFamily
+              bordered: true
+              onClicked: root.showQr = !root.showQr
+            }
+          }
+
+          Rectangle {
+            visible: root.showQr && root.qrPath !== ""
+            width: 164
+            height: 164
+            radius: 10
+            color: "#FFFFFF"
+            anchors.horizontalCenter: parent.horizontalCenter
+
+            Image {
+              anchors.centerIn: parent
+              width: 150
+              height: 150
+              source: root.qrPath !== "" ? ("file://" + root.qrPath) : ""
+              cache: false
+              smooth: false
+            }
+          }
+
+          Row {
+            visible: root.phoneBattery >= 0 || root.connectedClients > 0
+            width: parent.width
+            spacing: Style.space(8)
+
+            Text {
+              text: (root.phoneName !== "" ? root.phoneName : "Phone")
+                + (root.phoneBattery >= 0 ? (" · " + root.phoneBattery + "%" + (root.phoneCharging ? " ⚡" : "")) : "")
+              textFormat: Text.PlainText
+              color: root.foreground
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.bodySmall
+              anchors.verticalCenter: parent.verticalCenter
+            }
+
+            Button {
+              text: "Ring Phone"
+              enabled: root.bridgeActive
+              foreground: root.foreground
+              fontFamily: root.fontFamily
+              bordered: true
+              onClicked: root.ringPhone()
+            }
+          }
+
+          Column {
+            visible: root.replyable !== null && root.replyable !== undefined
+            width: parent.width
+            spacing: Style.space(4)
+
+            Text {
+              text: root.replyable ? (String(root.replyable.title || "Message") + ": " + String(root.replyable.body || "")) : ""
+              textFormat: Text.PlainText
+              color: root.dim
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+              elide: Text.ElideRight
+              width: parent.width
+            }
+
+            Row {
+              width: parent.width
+              spacing: Style.space(6)
+
+              TextField {
+                id: replyField
+                width: parent.width - replyBtn.width - Style.space(6)
+                placeholderText: "Quick reply to phone..."
+                color: root.foreground
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.caption
+                onAccepted: {
+                  root.sendQuickReply(text)
+                  text = ""
+                }
+              }
+
+              Button {
+                id: replyBtn
+                text: "Reply"
+                foreground: root.foreground
+                fontFamily: root.fontFamily
+                bordered: true
+                onClicked: {
+                  root.sendQuickReply(replyField.text)
+                  replyField.text = ""
+                }
+              }
             }
           }
 

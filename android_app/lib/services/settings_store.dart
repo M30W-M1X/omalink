@@ -14,6 +14,10 @@ class WizardSettings {
     this.syncOmarchyTheme = true,
     this.themeOverride = 'tokyo-night',
     this.cachedThemeJson = '',
+    this.autoSyncClipboard = false,
+    this.useTls = false,
+    this.tlsFingerprint = '',
+    this.tailscaleHost = '',
   });
 
   final String host;
@@ -28,11 +32,18 @@ class WizardSettings {
   final bool syncOmarchyTheme;
   final String themeOverride;
   final String cachedThemeJson;
+  final bool autoSyncClipboard;
+  final bool useTls;
+  final String tlsFingerprint;
+  final String tailscaleHost;
 
-  String get httpBaseUrl => 'http://$host:$port';
-  String get wsUrl => 'ws://$host:$port/ws';
-  String get terminalWsUrl => 'ws://$host:$port/ws/terminal';
-  String get desktopWsUrl => 'ws://$host:$port/ws/desktop';
+  String get httpScheme => useTls ? 'https' : 'http';
+  String get wsScheme => useTls ? 'wss' : 'ws';
+
+  String get httpBaseUrl => '$httpScheme://$host:$port';
+  String get wsUrl => '$wsScheme://$host:$port/ws';
+  String get terminalWsUrl => '$wsScheme://$host:$port/ws/terminal';
+  String get desktopWsUrl => '$wsScheme://$host:$port/ws/desktop';
 
   WizardSettings copyWith({
     String? host,
@@ -47,6 +58,10 @@ class WizardSettings {
     bool? syncOmarchyTheme,
     String? themeOverride,
     String? cachedThemeJson,
+    bool? autoSyncClipboard,
+    bool? useTls,
+    String? tlsFingerprint,
+    String? tailscaleHost,
   }) {
     return WizardSettings(
       host: host ?? this.host,
@@ -61,6 +76,10 @@ class WizardSettings {
       syncOmarchyTheme: syncOmarchyTheme ?? this.syncOmarchyTheme,
       themeOverride: themeOverride ?? this.themeOverride,
       cachedThemeJson: cachedThemeJson ?? this.cachedThemeJson,
+      autoSyncClipboard: autoSyncClipboard ?? this.autoSyncClipboard,
+      useTls: useTls ?? this.useTls,
+      tlsFingerprint: tlsFingerprint ?? this.tlsFingerprint,
+      tailscaleHost: tailscaleHost ?? this.tailscaleHost,
     );
   }
 }
@@ -78,6 +97,10 @@ class SettingsStore {
   static const _keySyncTheme = 'wizard_sync_omarchy_theme';
   static const _keyThemeOverride = 'wizard_theme_override';
   static const _keyCachedTheme = 'wizard_cached_theme_json';
+  static const _keyAutoClip = 'wizard_auto_sync_clipboard';
+  static const _keyUseTls = 'wizard_use_tls';
+  static const _keyTlsFp = 'wizard_tls_fingerprint';
+  static const _keyTailscaleHost = 'wizard_tailscale_host';
 
   Future<WizardSettings> load() async {
     final prefs = await SharedPreferences.getInstance();
@@ -94,6 +117,10 @@ class SettingsStore {
       syncOmarchyTheme: prefs.getBool(_keySyncTheme) ?? true,
       themeOverride: prefs.getString(_keyThemeOverride) ?? 'tokyo-night',
       cachedThemeJson: prefs.getString(_keyCachedTheme) ?? '',
+      autoSyncClipboard: prefs.getBool(_keyAutoClip) ?? false,
+      useTls: prefs.getBool(_keyUseTls) ?? false,
+      tlsFingerprint: prefs.getString(_keyTlsFp) ?? '',
+      tailscaleHost: prefs.getString(_keyTailscaleHost) ?? '',
     );
   }
 
@@ -111,5 +138,9 @@ class SettingsStore {
     await prefs.setBool(_keySyncTheme, settings.syncOmarchyTheme);
     await prefs.setString(_keyThemeOverride, settings.themeOverride);
     await prefs.setString(_keyCachedTheme, settings.cachedThemeJson);
+    await prefs.setBool(_keyAutoClip, settings.autoSyncClipboard);
+    await prefs.setBool(_keyUseTls, settings.useTls);
+    await prefs.setString(_keyTlsFp, settings.tlsFingerprint);
+    await prefs.setString(_keyTailscaleHost, settings.tailscaleHost);
   }
 }
