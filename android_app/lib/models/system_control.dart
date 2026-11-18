@@ -351,23 +351,35 @@ class OmarchyToggles {
 }
 
 class ThemeState {
-  const ThemeState({required this.current, required this.themes});
+  const ThemeState({
+    required this.current,
+    required this.themes,
+    this.palette,
+  });
 
   final String current;
   final List<String> themes;
+  final Map<String, dynamic>? palette;
 
   factory ThemeState.fromJson(Map<String, dynamic> json) {
     final raw = json['themes'] as List<dynamic>? ?? const [];
+    final rawPalette = json['palette'];
     return ThemeState(
       current: json['current']?.toString() ?? '',
       themes: raw.map((e) => e.toString()).toList(),
+      palette: rawPalette is Map<String, dynamic> ? rawPalette : null,
     );
   }
 
-  ThemeState copyWith({String? current, List<String>? themes}) {
+  ThemeState copyWith({
+    String? current,
+    List<String>? themes,
+    Map<String, dynamic>? palette,
+  }) {
     return ThemeState(
       current: current ?? this.current,
       themes: themes ?? this.themes,
+      palette: palette ?? this.palette,
     );
   }
 }

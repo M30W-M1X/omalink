@@ -9,6 +9,7 @@ import 'package:http/http.dart' as http;
 import '../models/agent_task.dart';
 import '../models/system_control.dart';
 import '../models/wizard_mood.dart';
+import '../theme/wizard_theme.dart';
 import 'continuity_service.dart';
 import 'notification_service.dart';
 import 'settings_store.dart';
@@ -150,10 +151,75 @@ class BridgeClient extends ChangeNotifier {
   String? _continuityBanner;
   String? get continuityBanner => _continuityBanner;
 
+  WizardPalette _desktopPalette = WizardPalette.tokyoNight;
+  WizardPalette get desktopPalette => _desktopPalette;
+  WizardPalette get activePalette => _settings.syncOmarchyTheme
+      ? _desktopPalette
+      : WizardPalette.byName(_settings.themeOverride);
+
+  void _syncActiveColors() {
+    WizardColors.apply(activePalette);
+  }
+
+  void _applyDesktopThemeJson(Map<String, dynamic> themeJson, {bool persist = true}) {
+    final parsed = WizardPalette.fromOmarchyJson(themeJson);
+    _desktopPalette = parsed;
+    _syncActiveColors();
+    if (persist && !_settings.demoMode) {
+      final encoded = jsonEncode(parsed.toOmarchyJson());
+      if (encoded != _settings.cachedThemeJson) {
+        _settings = _settings.copyWith(cachedThemeJson: encoded);
+        unawaited(_settingsStore.save(_settings));
+      }
+    }
+    notifyListeners();
+  }
+
+  Future<void> updateThemePreferences({
+    bool? syncOmarchyTheme,
+    String? themeOverride,
+  }) async {
+    _settings = _settings.copyWith(
+      syncOmarchyTheme: syncOmarchyTheme,
+      themeOverride: themeOverride,
+    );
+    _syncActiveColors();
+    await _settingsStore.save(_settings);
+    notifyListeners();
+    if (_settings.syncOmarchyTheme && !_settings.demoMode) {
+      unawaited(refreshDesktopTheme());
+    }
+  }
+
+  Future<void> refreshDesktopTheme() async {
+    if (_settings.demoMode) return;
+    try {
+      final resp = await http
+          .get(
+            Uri.parse('${_settings.httpBaseUrl}/api/theme/current'),
+            headers: _headers,
+          )
+          .timeout(const Duration(seconds: 5));
+      if (resp.statusCode == 200) {
+        final decoded = jsonDecode(resp.body) as Map<String, dynamic>;
+        _applyDesktopThemeJson(decoded);
+      }
+    } catch (_) {}
+  }
+
   Future<void> init() async {
     _settings = await _settingsStore.load();
     _selectedMode = _settings.defaultMode;
     _selectedEffort = _settings.defaultEffort;
+    if (_settings.cachedThemeJson.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(_settings.cachedThemeJson);
+        if (decoded is Map<String, dynamic>) {
+          _desktopPalette = WizardPalette.fromOmarchyJson(decoded);
+        }
+      } catch (_) {}
+    }
+    _syncActiveColors();
 
     _notificationAccessEnabled =
         await ContinuityService.instance.isNotificationListenerEnabled();
@@ -376,9 +442,11 @@ class BridgeClient extends ChangeNotifier {
       switch (type) {
         case 'hello':
           if (data['status'] is Map<String, dynamic>) {
-            _applyHostStatus(
-              HostStatus.fromJson(data['status'] as Map<String, dynamic>),
-            );
+            final statusMap = data['status'] as Map<String, dynamic>;
+            _applyHostStatus(HostStatus.fromJson(statusMap));
+            if (statusMap['theme'] is Map<String, dynamic>) {
+              _applyDesktopThemeJson(statusMap['theme'] as Map<String, dynamic>);
+            }
           }
           if (data['tasks'] is List) {
             _tasks
@@ -450,6 +518,9 @@ class BridgeClient extends ChangeNotifier {
             );
             notifyListeners();
           }
+          break;
+        case 'theme.changed':
+          _applyDesktopThemeJson(data);
           break;
       }
     } catch (e) {
@@ -672,6 +743,9 @@ class BridgeClient extends ChangeNotifier {
       if (resp.statusCode == 200) {
         final decoded = jsonDecode(resp.body) as Map<String, dynamic>;
         _systemState = SystemState.fromJson(decoded);
+        if (_systemState.theme.palette != null) {
+          _applyDesktopThemeJson(_systemState.theme.palette!);
+        }
         _systemMessage = null;
       } else {
         _systemMessage = 'Telemetry error (${resp.statusCode})';
@@ -708,6 +782,9 @@ class BridgeClient extends ChangeNotifier {
         _systemState = SystemState.fromJson(
           decoded['state'] as Map<String, dynamic>,
         );
+        if (_systemState.theme.palette != null) {
+          _applyDesktopThemeJson(_systemState.theme.palette!);
+        }
       }
       if (decoded['ok'] == true) {
         _wizardQuip = _systemMessage ?? _wizardQuip;
@@ -821,6 +898,8 @@ class BridgeClient extends ChangeNotifier {
       case 'theme.set':
         final name = params['name']?.toString() ?? s.theme.current;
         _systemState = s.copyWith(theme: s.theme.copyWith(current: name));
+        _desktopPalette = WizardPalette.byName(name);
+        _syncActiveColors();
         _systemMessage = 'Demo theme set to $name';
         break;
       case 'hyprland.workspace':

@@ -611,6 +611,47 @@ class BridgeTests(unittest.TestCase):
         finally:
             await bridge.stop()
 
+    def test_theme_palette_parsing_and_endpoint(self) -> None:
+        self.assertEqual(omarchy_control.theme_slug_from_name("Catppuccin Latte"), "catppuccin-latte")
+        self.assertEqual(omarchy_control.theme_display_name("catppuccin-latte"), "Catppuccin Latte")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            theme_dir = Path(tmpdir) / ".local" / "state" / "omarchy" / "current" / "theme"
+            theme_dir.mkdir(parents=True)
+            (theme_dir.parent / "theme.name").write_text("catppuccin-latte\n", encoding="utf-8")
+            (theme_dir.parent / "theme.generation").write_text("gen-42\n", encoding="utf-8")
+            (theme_dir / "colors.toml").write_text(
+                'mode = "light"\naccent = "#1e66f5"\nbackground = "#eff1f5"\nforeground = "#4c4f69"\n',
+                encoding="utf-8",
+            )
+            with mock.patch.object(omarchy_control.Path, "home", return_value=Path(tmpdir)):
+                palette = omarchy_control.read_theme_palette_sync()
+                self.assertEqual(palette["slug"], "catppuccin-latte")
+                self.assertEqual(palette["name"], "Catppuccin Latte")
+                self.assertEqual(palette["mode"], "light")
+                self.assertEqual(palette["generation"], "gen-42")
+                self.assertEqual(palette["colors"]["accent"], "#1e66f5")
+                self.assertEqual(palette["colors"]["background"], "#eff1f5")
+
+                asyncio.run(self._run_theme_endpoint_test(palette))
+
+    async def _run_theme_endpoint_test(self, expected: dict) -> None:
+        bridge = OmarchyWizardBridge(host="127.0.0.1", port=0, token="theme-tok")
+        await bridge.start()
+        port = bridge.bound_port
+        try:
+            code, resp = await asyncio.to_thread(
+                _http_json,
+                f"http://127.0.0.1:{port}/api/theme/current",
+                "GET",
+                "theme-tok",
+            )
+            self.assertEqual(code, 200)
+            self.assertEqual(resp["slug"], expected["slug"])
+            self.assertEqual(resp["colors"]["accent"], "#1e66f5")
+        finally:
+            await bridge.stop()
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -14,8 +14,8 @@ class SpellLogView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (task.events.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 16),
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 16),
         child: Center(
           child: Text(
             'Waiting for arcane output...',
@@ -57,7 +57,7 @@ class SpellLogView extends StatelessWidget {
               Expanded(
                 child: Text(
                   ev.text,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: WizardColors.textPrimary,
                     fontSize: 13,
                     height: 1.35,

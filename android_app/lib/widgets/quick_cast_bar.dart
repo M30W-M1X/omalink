@@ -30,14 +30,14 @@ class QuickCastBar extends StatelessWidget {
           return ActionChip(
             label: Text(
               label,
-              style: const TextStyle(
+              style: TextStyle(
                 color: WizardColors.textPrimary,
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
               ),
             ),
             backgroundColor: WizardColors.surfaceElevated,
-            side: const BorderSide(color: WizardColors.borderSubtle),
+            side: BorderSide(color: WizardColors.borderSubtle),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(14),
             ),

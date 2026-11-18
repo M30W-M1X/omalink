@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:omarchy_wizard/models/agent_task.dart';
 import 'package:omarchy_wizard/models/system_control.dart';
 import 'package:omarchy_wizard/models/wizard_mood.dart';
+import 'package:omarchy_wizard/theme/wizard_theme.dart';
 
 void main() {
   test('AgentTask.fromJson parses bridge payload', () {
@@ -120,5 +121,40 @@ void main() {
     expect(dir.entries.length, 1);
     expect(dir.entries.first.isDir, isTrue);
     expect(dir.bookmarks.first.label, 'Home');
+  });
+
+  test('WizardPalette parses dark and light Omarchy themes dynamically', () {
+    final nord = WizardPalette.fromOmarchyJson({
+      'slug': 'nord',
+      'name': 'Nord',
+      'mode': 'dark',
+      'colors': {
+        'accent': '#81a1c1',
+        'background': '#2e3440',
+        'darker_background': '#191c23',
+        'foreground': '#d8dee9',
+        'cyan': '#88c0d0',
+      },
+    });
+    expect(nord.slug, 'nord');
+    expect(nord.isLight, isFalse);
+    expect(nord.violetArcane.toARGB32(), 0xFF81A1C1);
+    expect(nord.obsidian.toARGB32(), 0xFF191C23);
+
+    final latte = WizardPalette.fromOmarchyJson({
+      'slug': 'catppuccin-latte',
+      'name': 'Catppuccin Latte',
+      'mode': 'light',
+      'colors': {
+        'accent': '#1e66f5',
+        'background': '#eff1f5',
+        'dark_background': '#e3e4e8',
+        'foreground': '#4c4f69',
+      },
+    });
+    expect(latte.isLight, isTrue);
+    expect(latte.obsidian.toARGB32(), 0xFFEFF1F5);
+    expect(latte.textPrimary.toARGB32(), 0xFF4C4F69);
+    expect(WizardTheme.fromPalette(latte).brightness.name, 'light');
   });
 }

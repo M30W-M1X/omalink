@@ -15,6 +15,7 @@ import re
 import shutil
 import socket
 import subprocess
+import tomllib
 from pathlib import Path
 from typing import Any
 
@@ -452,6 +453,97 @@ def _read_toggles_state() -> dict[str, Any]:
     }
 
 
+def theme_slug_from_name(name: str) -> str:
+    """Convert an Omarchy display name (e.g. 'Catppuccin Latte') to a theme slug."""
+    cleaned = re.sub(r"[^a-zA-Z0-9]+", "-", (name or "").strip().lower()).strip("-")
+    return cleaned
+
+
+def theme_display_name(slug: str) -> str:
+    """Convert a theme slug (e.g. 'catppuccin-latte') to Title Case display name."""
+    if not slug:
+        return "Unknown"
+    return " ".join(part.capitalize() for part in slug.split("-") if part)
+
+
+def read_theme_generation() -> tuple[str, str]:
+    """Read (theme_slug, generation_token) cheaply without spawning subprocesses."""
+    state_dir = Path.home() / ".local" / "state" / "omarchy" / "current"
+    slug = ""
+    gen = ""
+    try:
+        name_path = state_dir / "theme.name"
+        if name_path.is_file():
+            slug = name_path.read_text(encoding="utf-8").strip()
+    except OSError:
+        pass
+    try:
+        gen_path = state_dir / "theme.generation"
+        if gen_path.is_file():
+            gen = gen_path.read_text(encoding="utf-8").strip()
+    except OSError:
+        pass
+    return slug, gen
+
+
+def _find_colors_toml(slug: str | None) -> Path | None:
+    state_current = Path.home() / ".local" / "state" / "omarchy" / "current" / "theme" / "colors.toml"
+    if not slug:
+        if state_current.is_file():
+            return state_current
+        return None
+    candidates = [
+        Path.home() / ".config" / "omarchy" / "themes" / slug / "colors.toml",
+        Path("/usr/share/omarchy/themes") / slug / "colors.toml",
+    ]
+    current_slug, _ = read_theme_generation()
+    if current_slug == slug and state_current.is_file():
+        candidates.insert(0, state_current)
+    for path in candidates:
+        if path.is_file():
+            return path
+    return None
+
+
+def read_theme_palette_sync(theme_name: str | None = None) -> dict[str, Any]:
+    """Parse Omarchy's active or named theme colors.toml into a JSON-ready palette."""
+    current_slug, generation = read_theme_generation()
+    slug = theme_slug_from_name(theme_name) if theme_name else current_slug
+    if not slug and shutil.which("omarchy-theme-current"):
+        rc, out, _ = _run_cmd(["omarchy-theme-current"], timeout=2.0)
+        if rc == 0 and out.strip():
+            slug = theme_slug_from_name(out.strip())
+
+    toml_path = _find_colors_toml(slug) if slug else _find_colors_toml(None)
+    colors: dict[str, str] = {}
+    mode = "dark"
+    if toml_path is not None:
+        try:
+            parsed = tomllib.loads(toml_path.read_text(encoding="utf-8"))
+            raw_mode = str(parsed.get("mode", "dark")).strip().lower()
+            if raw_mode in {"dark", "light"}:
+                mode = raw_mode
+            for key, val in parsed.items():
+                if key == "mode":
+                    continue
+                if isinstance(val, str) and re.fullmatch(r"#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?", val.strip()):
+                    colors[key] = val.strip().lower()
+        except Exception:
+            pass
+
+    return {
+        "slug": slug or "tokyo-night",
+        "name": theme_display_name(slug) if slug else "Tokyo Night",
+        "mode": mode,
+        "generation": generation,
+        "colors": colors,
+    }
+
+
+async def read_theme_palette(theme_name: str | None = None) -> dict[str, Any]:
+    return await asyncio.to_thread(read_theme_palette_sync, theme_name)
+
+
 def _read_theme_state() -> dict[str, Any]:
     current = ""
     themes: list[str] = []
@@ -463,7 +555,10 @@ def _read_theme_state() -> dict[str, Any]:
         rc, out, _ = _run_cmd(["omarchy-theme-list"], timeout=2.0)
         if rc == 0:
             themes = [line.strip() for line in out.splitlines() if line.strip()]
-    return {"current": current, "themes": themes}
+    palette = read_theme_palette_sync()
+    if not current and palette.get("name"):
+        current = str(palette["name"])
+    return {"current": current, "themes": themes, "palette": palette}
 
 
 def _read_security_state() -> dict[str, Any]:

@@ -353,7 +353,7 @@ class _DesktopScreenState extends State<DesktopScreen> {
             // Top bar
             Container(
               padding: const EdgeInsets.fromLTRB(6, 6, 8, 6),
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 color: WizardColors.midnight,
                 border: Border(bottom: BorderSide(color: WizardColors.borderSubtle)),
               ),
@@ -363,7 +363,7 @@ class _DesktopScreenState extends State<DesktopScreen> {
                     tooltip: 'Back',
                     visualDensity: VisualDensity.compact,
                     onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.arrow_back_rounded, color: WizardColors.textPrimary),
+                    icon: Icon(Icons.arrow_back_rounded, color: WizardColors.textPrimary),
                   ),
                   Container(
                     width: 8,
@@ -384,7 +384,7 @@ class _DesktopScreenState extends State<DesktopScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
+                        Text(
                           'Omarchy Remote Desktop',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -400,7 +400,7 @@ class _DesktopScreenState extends State<DesktopScreen> {
                               : _statusText,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: WizardColors.textMuted,
                             fontSize: 11,
                           ),
@@ -411,7 +411,7 @@ class _DesktopScreenState extends State<DesktopScreen> {
                   if (_monitors.length > 1)
                     PopupMenuButton<String>(
                       tooltip: 'Select Monitor',
-                      icon: const Icon(Icons.monitor_rounded, color: WizardColors.cyanArcane, size: 20),
+                      icon: Icon(Icons.monitor_rounded, color: WizardColors.cyanArcane, size: 20),
                       onSelected: (name) {
                         setState(() => _selectedOutput = name);
                         _sendJson({'type': 'config', 'output': name});
@@ -445,7 +445,7 @@ class _DesktopScreenState extends State<DesktopScreen> {
                     tooltip: 'Reset Zoom',
                     visualDensity: VisualDensity.compact,
                     onPressed: () => _transformController.value = Matrix4.identity(),
-                    icon: const Icon(Icons.fit_screen_rounded, color: WizardColors.textMuted, size: 20),
+                    icon: Icon(Icons.fit_screen_rounded, color: WizardColors.textMuted, size: 20),
                   ),
                   if (!isDemo && !_connected && !_connecting)
                     FilledButton(
@@ -481,8 +481,8 @@ class _DesktopScreenState extends State<DesktopScreen> {
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 children: [
-                  const Padding(
-                    padding: EdgeInsets.only(right: 8, top: 4),
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8, top: 4),
                     child: Text(
                       'WS',
                       style: TextStyle(
@@ -585,11 +585,11 @@ class _DesktopScreenState extends State<DesktopScreen> {
                                     child: Column(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        const CircularProgressIndicator(color: WizardColors.cyanArcane),
+                                        CircularProgressIndicator(color: WizardColors.cyanArcane),
                                         const SizedBox(height: 12),
                                         Text(
                                           _statusText,
-                                          style: const TextStyle(color: WizardColors.textMuted),
+                                          style: TextStyle(color: WizardColors.textMuted),
                                         ),
                                       ],
                                     ),
@@ -629,7 +629,7 @@ class _DesktopScreenState extends State<DesktopScreen> {
             if (_showKeyboard)
               Container(
                 padding: const EdgeInsets.fromLTRB(10, 8, 10, 6),
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   color: WizardColors.surfaceCard,
                   border: Border(top: BorderSide(color: WizardColors.borderSubtle)),
                 ),
@@ -642,10 +642,10 @@ class _DesktopScreenState extends State<DesktopScreen> {
                           child: TextField(
                             controller: _textController,
                             focusNode: _textFocus,
-                            style: const TextStyle(color: WizardColors.textPrimary, fontSize: 13),
+                            style: TextStyle(color: WizardColors.textPrimary, fontSize: 13),
                             decoration: InputDecoration(
                               hintText: 'Type text to desktop...',
-                              hintStyle: const TextStyle(color: WizardColors.textMuted),
+                              hintStyle: TextStyle(color: WizardColors.textMuted),
                               isDense: true,
                               filled: true,
                               fillColor: WizardColors.obsidian,
@@ -697,7 +697,7 @@ class _DesktopScreenState extends State<DesktopScreen> {
             Container(
               height: 48,
               padding: const EdgeInsets.symmetric(horizontal: 10),
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 color: WizardColors.midnight,
                 border: Border(top: BorderSide(color: WizardColors.borderSubtle)),
               ),
@@ -817,7 +817,7 @@ class _KeyChip extends StatelessWidget {
             child: Center(
               child: Text(
                 label,
-                style: const TextStyle(
+                style: TextStyle(
                   color: WizardColors.textPrimary,
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
@@ -869,19 +869,19 @@ class _DemoHyprlandDesktop extends StatelessWidget {
               children: [
                 Text(
                   'WS $activeWorkspace',
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: WizardColors.cyanArcane,
                     fontSize: 10,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
                 const Spacer(),
-                const Text(
+                Text(
                   'Omarchy Hyprland • Demo Desktop',
                   style: TextStyle(color: WizardColors.textMuted, fontSize: 10),
                 ),
                 const Spacer(),
-                const Text(
+                Text(
                   '♫ Spotify',
                   style: TextStyle(color: WizardColors.emeraldSage, fontSize: 10),
                 ),
@@ -901,7 +901,7 @@ class _DemoHyprlandDesktop extends StatelessWidget {
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(color: WizardColors.cyanArcane, width: 1.5),
                     ),
-                    child: const Column(
+                    child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
@@ -912,7 +912,7 @@ class _DemoHyprlandDesktop extends StatelessWidget {
                             fontWeight: FontWeight.w700,
                           ),
                         ),
-                        SizedBox(height: 6),
+                        const SizedBox(height: 6),
                         Text(
                           '~ \$ systemctl --user status omarchy-wizard-bridge\n'
                           '● active (running) :7842\n'
@@ -942,7 +942,7 @@ class _DemoHyprlandDesktop extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
+                        Text(
                           'Control Preview',
                           style: TextStyle(
                             color: WizardColors.violetArcane,
@@ -955,7 +955,7 @@ class _DemoHyprlandDesktop extends StatelessWidget {
                           lastTap != null
                               ? 'Cursor: ${(lastTap!.dx * 100).round()}%, ${(lastTap!.dy * 100).round()}%'
                               : 'Tap screen to move cursor',
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: WizardColors.textMuted,
                             fontSize: 10,
                           ),
@@ -964,7 +964,7 @@ class _DemoHyprlandDesktop extends StatelessWidget {
                           const SizedBox(height: 6),
                           Text(
                             toast!,
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: WizardColors.emeraldSage,
                               fontSize: 10,
                             ),

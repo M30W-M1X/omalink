@@ -415,6 +415,7 @@ class OmarchyWizardBridge:
         self.task_order: list[str] = []
         self.ws_clients: set[WebSocketClient] = set()
         self._bg_tasks: set[asyncio.Task[None]] = set()
+        self._theme_watch_task: asyncio.Task[None] | None = None
         self.server: asyncio.AbstractServer | None = None
         self.bound_port: int = port
 
@@ -445,6 +446,7 @@ class OmarchyWizardBridge:
             "connected_clients": len(self.ws_clients),
             "lan_ips": detect_lan_ips(),
             "total_tasks": len(self.tasks),
+            "theme": omarchy_control.read_theme_palette_sync(),
         }
 
     async def broadcast(self, event_type: str, data: dict[str, Any]) -> None:
@@ -601,8 +603,30 @@ class OmarchyWizardBridge:
         sockets = self.server.sockets
         if sockets:
             self.bound_port = sockets[0].getsockname()[1]
+        self._theme_watch_task = asyncio.create_task(self._watch_theme_loop())
+
+    async def _watch_theme_loop(self) -> None:
+        last_sig = omarchy_control.read_theme_generation()
+        try:
+            while True:
+                await asyncio.sleep(2.0)
+                if not self.ws_clients:
+                    continue
+                sig = omarchy_control.read_theme_generation()
+                if sig != last_sig and (sig[0] or sig[1]):
+                    last_sig = sig
+                    palette = await omarchy_control.read_theme_palette()
+                    await self.broadcast("theme.changed", palette)
+        except asyncio.CancelledError:
+            return
 
     async def stop(self) -> None:
+        if self._theme_watch_task is not None and not self._theme_watch_task.done():
+            self._theme_watch_task.cancel()
+            try:
+                await self._theme_watch_task
+            except asyncio.CancelledError:
+                pass
         for task in list(self.tasks.values()):
             proc = task.process
             if proc and proc.returncode is None:
@@ -756,6 +780,12 @@ class OmarchyWizardBridge:
             await self._send_http_json(writer, HTTPStatus.OK, {"ok": True, "default_agent": agent})
             return
 
+        if method == "GET" and path == "/api/theme/current":
+            raw_name = (query.get("name") or [None])[0]
+            palette = await omarchy_control.read_theme_palette(raw_name)
+            await self._send_http_json(writer, HTTPStatus.OK, palette)
+            return
+
         if method == "GET" and path == "/api/system/state":
             state = await omarchy_control.read_system_state()
             await self._send_http_json(writer, HTTPStatus.OK, state)
@@ -773,6 +803,9 @@ class OmarchyWizardBridge:
             status_code = HTTPStatus.OK if result.get("ok") else HTTPStatus.BAD_REQUEST
             if result.get("ok"):
                 await self.broadcast("system.action", {"action": action, "message": result.get("message", "")})
+                if action == "theme.set":
+                    palette = await omarchy_control.read_theme_palette()
+                    await self.broadcast("theme.changed", palette)
             await self._send_http_json(writer, status_code, result)
             return
 

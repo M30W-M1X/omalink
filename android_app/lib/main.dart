@@ -40,14 +40,16 @@ class _OmarchyWizardAppState extends State<OmarchyWizardApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Omarchy Wizard',
-      debugShowCheckedModeBanner: false,
-      theme: WizardTheme.darkTheme(),
-      home: AnimatedBuilder(
-        animation: widget.client,
-        builder: (context, _) {
-          return Scaffold(
+    return AnimatedBuilder(
+      animation: widget.client,
+      builder: (context, _) {
+        final palette = widget.client.activePalette;
+        WizardColors.apply(palette);
+        return MaterialApp(
+          title: 'Omarchy Wizard',
+          debugShowCheckedModeBanner: false,
+          theme: WizardTheme.fromPalette(palette),
+          home: Scaffold(
             body: IndexedStack(
               index: _tabIndex,
               children: [
@@ -100,9 +102,9 @@ class _OmarchyWizardAppState extends State<OmarchyWizardApp> {
                 ),
               ],
             ),
-          );
-        },
-      ),
+          ),
+        );
+      },
     );
   }
 }

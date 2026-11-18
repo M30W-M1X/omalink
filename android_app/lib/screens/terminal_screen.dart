@@ -16,31 +16,33 @@ enum _PtyState {
   connected,
 }
 
-const TerminalTheme _omarchyTerminalTheme = TerminalTheme(
-  cursor: WizardColors.cyanArcane,
-  selection: Color(0x557DCFFF),
-  foreground: WizardColors.textPrimary,
-  background: WizardColors.obsidian,
-  black: Color(0xFF15161E),
-  red: WizardColors.coralError,
-  green: WizardColors.emeraldSage,
-  yellow: WizardColors.goldStarlight,
-  blue: Color(0xFF7AA2F7),
-  magenta: WizardColors.violetArcane,
-  cyan: WizardColors.cyanArcane,
-  white: Color(0xFFA9B1D6),
-  brightBlack: Color(0xFF414868),
-  brightRed: Color(0xFFF7768E),
-  brightGreen: Color(0xFF9ECE6A),
-  brightYellow: Color(0xFFE0AF68),
-  brightBlue: Color(0xFF7AA2F7),
-  brightMagenta: Color(0xFFBB9AF7),
-  brightCyan: Color(0xFF7DCFFF),
-  brightWhite: Color(0xFFC0CAF5),
-  searchHitBackground: Color(0x66E0AF68),
-  searchHitBackgroundCurrent: Color(0x997DCFFF),
-  searchHitForeground: WizardColors.obsidian,
-);
+TerminalTheme _buildTerminalTheme(WizardPalette p) {
+  return TerminalTheme(
+    cursor: p.cyanArcane,
+    selection: p.cyanArcane.withValues(alpha: 0.35),
+    foreground: p.textPrimary,
+    background: p.obsidian,
+    black: p.ansiBlack,
+    red: p.ansiRed,
+    green: p.ansiGreen,
+    yellow: p.ansiYellow,
+    blue: p.ansiBlue,
+    magenta: p.ansiMagenta,
+    cyan: p.ansiCyan,
+    white: p.ansiWhite,
+    brightBlack: p.ansiBrightBlack,
+    brightRed: p.ansiBrightRed,
+    brightGreen: p.ansiBrightGreen,
+    brightYellow: p.ansiBrightYellow,
+    brightBlue: p.ansiBrightBlue,
+    brightMagenta: p.ansiBrightMagenta,
+    brightCyan: p.ansiBrightCyan,
+    brightWhite: p.ansiBrightWhite,
+    searchHitBackground: p.goldStarlight.withValues(alpha: 0.4),
+    searchHitBackgroundCurrent: p.cyanArcane.withValues(alpha: 0.6),
+    searchHitForeground: p.obsidian,
+  );
+}
 
 class TerminalScreen extends StatefulWidget {
   const TerminalScreen({
@@ -429,7 +431,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
         children: [
           Container(
             padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               color: WizardColors.midnight,
               border: Border(bottom: BorderSide(color: WizardColors.borderSubtle)),
             ),
@@ -448,7 +450,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'Omarchy Terminal',
                         style: TextStyle(
                           color: WizardColors.textPrimary,
@@ -460,7 +462,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
                         _shortCwd(_statusDetail),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: WizardColors.textMuted,
                           fontSize: 11,
                         ),
@@ -474,7 +476,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
                   onPressed: _fontSize <= 10
                       ? null
                       : () => setState(() => _fontSize -= 1),
-                  icon: const Icon(Icons.text_decrease_rounded, size: 18, color: WizardColors.textMuted),
+                  icon: Icon(Icons.text_decrease_rounded, size: 18, color: WizardColors.textMuted),
                 ),
                 IconButton(
                   tooltip: 'Increase Font',
@@ -482,7 +484,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
                   onPressed: _fontSize >= 19
                       ? null
                       : () => setState(() => _fontSize += 1),
-                  icon: const Icon(Icons.text_increase_rounded, size: 18, color: WizardColors.textMuted),
+                  icon: Icon(Icons.text_increase_rounded, size: 18, color: WizardColors.textMuted),
                 ),
                 IconButton(
                   tooltip: 'Clear Screen',
@@ -491,7 +493,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
                     _terminal.write('\x1b[2J\x1b[H');
                     if (isDemo) _writeDemoPrompt();
                   },
-                  icon: const Icon(Icons.cleaning_services_outlined, size: 18, color: WizardColors.textMuted),
+                  icon: Icon(Icons.cleaning_services_outlined, size: 18, color: WizardColors.textMuted),
                 ),
                 if (isDemo)
                   TextButton(
@@ -504,7 +506,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
                     tooltip: 'Disconnect Shell',
                     visualDensity: VisualDensity.compact,
                     onPressed: () => unawaited(_disconnect()),
-                    icon: const Icon(Icons.link_off_rounded, size: 20, color: WizardColors.coralError),
+                    icon: Icon(Icons.link_off_rounded, size: 20, color: WizardColors.coralError),
                   )
                 else
                   FilledButton.icon(
@@ -528,7 +530,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
                 _terminal,
                 controller: _controller,
                 focusNode: _focusNode,
-                theme: _omarchyTerminalTheme,
+                theme: _buildTerminalTheme(widget.client.activePalette),
                 textStyle: TerminalStyle(fontSize: _fontSize),
                 autofocus: false,
                 alwaysShowCursor: true,
@@ -538,7 +540,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
           ),
           Container(
             height: 44,
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               color: WizardColors.midnight,
               border: Border(top: BorderSide(color: WizardColors.borderSubtle)),
             ),

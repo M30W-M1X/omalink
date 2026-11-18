@@ -76,7 +76,7 @@ class _WizardHomeScreenState extends State<WizardHomeScreen> {
               delegate: SliverChildListDelegate([
                 Row(
                   children: [
-                    const Expanded(
+                    Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -89,7 +89,7 @@ class _WizardHomeScreenState extends State<WizardHomeScreen> {
                               letterSpacing: -0.4,
                             ),
                           ),
-                          SizedBox(height: 2),
+                          const SizedBox(height: 2),
                           Text(
                             'Arcane AI Agent Controller',
                             style: TextStyle(
@@ -110,7 +110,7 @@ class _WizardHomeScreenState extends State<WizardHomeScreen> {
                           ),
                         );
                       },
-                      icon: const Icon(
+                      icon: Icon(
                         Icons.devices_rounded,
                         color: WizardColors.emeraldSage,
                       ),
@@ -128,7 +128,7 @@ class _WizardHomeScreenState extends State<WizardHomeScreen> {
                           ),
                         );
                       },
-                      icon: const Icon(
+                      icon: Icon(
                         Icons.desktop_windows_outlined,
                         color: WizardColors.cyanArcane,
                       ),
@@ -152,7 +152,7 @@ class _WizardHomeScreenState extends State<WizardHomeScreen> {
                           ),
                         );
                       },
-                      icon: const Icon(
+                      icon: Icon(
                         Icons.menu_book_outlined,
                         color: WizardColors.violetArcane,
                       ),
@@ -186,7 +186,7 @@ class _WizardHomeScreenState extends State<WizardHomeScreen> {
                     ),
                     child: Row(
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.error_outline_rounded,
                           color: WizardColors.coralError,
                           size: 18,
@@ -195,7 +195,7 @@ class _WizardHomeScreenState extends State<WizardHomeScreen> {
                         Expanded(
                           child: Text(
                             client.lastError!,
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: WizardColors.textPrimary,
                               fontSize: 12,
                             ),
@@ -244,7 +244,7 @@ class _WizardHomeScreenState extends State<WizardHomeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'SPELL PARAMETERS',
               style: TextStyle(
                 color: WizardColors.textMuted,
@@ -321,7 +321,7 @@ class _WizardHomeScreenState extends State<WizardHomeScreen> {
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.reply_rounded,
                       size: 16,
                       color: WizardColors.cyanArcane,
@@ -330,7 +330,7 @@ class _WizardHomeScreenState extends State<WizardHomeScreen> {
                     Expanded(
                       child: Text(
                         'Continuing conversation $_replyConversationId',
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: WizardColors.cyanArcane,
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
@@ -339,7 +339,7 @@ class _WizardHomeScreenState extends State<WizardHomeScreen> {
                     ),
                     InkWell(
                       onTap: () => setState(() => _replyConversationId = null),
-                      child: const Icon(
+                      child: Icon(
                         Icons.close_rounded,
                         size: 16,
                         color: WizardColors.textMuted,
@@ -354,7 +354,7 @@ class _WizardHomeScreenState extends State<WizardHomeScreen> {
               minLines: 2,
               maxLines: 5,
               textInputAction: TextInputAction.newline,
-              style: const TextStyle(color: WizardColors.textPrimary),
+              style: TextStyle(color: WizardColors.textPrimary),
               decoration: const InputDecoration(
                 hintText: 'Command your Omarchy AI agent...',
               ),
@@ -420,12 +420,12 @@ class _WizardHomeScreenState extends State<WizardHomeScreen> {
                 if (task.status == TaskStatus.running)
                   TextButton.icon(
                     onPressed: () => client.cancelActiveSpell(task.id),
-                    icon: const Icon(
+                    icon: Icon(
                       Icons.stop_circle_outlined,
                       size: 18,
                       color: WizardColors.coralError,
                     ),
-                    label: const Text(
+                    label: Text(
                       'Dispel',
                       style: TextStyle(
                         color: WizardColors.coralError,
@@ -439,12 +439,12 @@ class _WizardHomeScreenState extends State<WizardHomeScreen> {
                       setState(() => _replyConversationId = task.conversationId);
                       _promptFocus.requestFocus();
                     },
-                    icon: const Icon(
+                    icon: Icon(
                       Icons.reply_rounded,
                       size: 18,
                       color: WizardColors.cyanArcane,
                     ),
-                    label: const Text(
+                    label: Text(
                       'Follow Up',
                       style: TextStyle(
                         color: WizardColors.cyanArcane,
@@ -457,7 +457,7 @@ class _WizardHomeScreenState extends State<WizardHomeScreen> {
             const SizedBox(height: 8),
             Text(
               task.prompt,
-              style: const TextStyle(
+              style: TextStyle(
                 color: WizardColors.textPrimary,
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
@@ -499,7 +499,7 @@ class _DropdownPill<T> extends StatelessWidget {
         children: [
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               color: WizardColors.textMuted,
               fontSize: 10,
               fontWeight: FontWeight.w600,
@@ -512,7 +512,7 @@ class _DropdownPill<T> extends StatelessWidget {
               isDense: true,
               dropdownColor: WizardColors.surfaceElevated,
               iconEnabledColor: WizardColors.cyanArcane,
-              style: const TextStyle(
+              style: TextStyle(
                 color: WizardColors.textPrimary,
                 fontSize: 13,
                 fontWeight: FontWeight.w600,

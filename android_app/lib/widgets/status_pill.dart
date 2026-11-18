@@ -68,7 +68,7 @@ class StatusPill extends StatelessWidget {
             const SizedBox(width: 8),
             Text(
               label,
-              style: const TextStyle(
+              style: TextStyle(
                 color: WizardColors.textPrimary,
                 fontSize: 12,
                 fontWeight: FontWeight.w600,

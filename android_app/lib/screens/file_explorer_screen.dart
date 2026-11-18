@@ -49,7 +49,7 @@ class _FileExplorerScreenState extends State<FileExplorerScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: WizardColors.surfaceCard,
-        title: Text(title, style: const TextStyle(color: WizardColors.textPrimary)),
+        title: Text(title, style: TextStyle(color: WizardColors.textPrimary)),
         content: TextField(
           controller: controller,
           autofocus: true,
@@ -97,10 +97,10 @@ class _FileExplorerScreenState extends State<FileExplorerScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: WizardColors.surfaceCard,
-        title: const Text('Move to Trash?', style: TextStyle(color: WizardColors.textPrimary)),
+        title: Text('Move to Trash?', style: TextStyle(color: WizardColors.textPrimary)),
         content: Text(
           'Move "${entry.name}" to the desktop Trash?',
-          style: const TextStyle(color: WizardColors.textMuted),
+          style: TextStyle(color: WizardColors.textMuted),
         ),
         actions: [
           TextButton(
@@ -145,14 +145,14 @@ class _FileExplorerScreenState extends State<FileExplorerScreen> {
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.description_outlined, color: WizardColors.cyanArcane),
+                      Icon(Icons.description_outlined, color: WizardColors.cyanArcane),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           preview.name,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: WizardColors.textPrimary,
                             fontSize: 16,
                             fontWeight: FontWeight.w700,
@@ -161,7 +161,7 @@ class _FileExplorerScreenState extends State<FileExplorerScreen> {
                       ),
                       Text(
                         _formatSize(preview.size),
-                        style: const TextStyle(color: WizardColors.textMuted, fontSize: 12),
+                        style: TextStyle(color: WizardColors.textMuted, fontSize: 12),
                       ),
                     ],
                   ),
@@ -176,7 +176,7 @@ class _FileExplorerScreenState extends State<FileExplorerScreen> {
                         onPressed: () => widget.client.openFileOnDesktop(preview.path),
                       ),
                       ActionChip(
-                        avatar: const Icon(Icons.auto_fix_high, size: 16, color: WizardColors.cyanArcane),
+                        avatar: Icon(Icons.auto_fix_high, size: 16, color: WizardColors.cyanArcane),
                         label: const Text('Ask Wizard'),
                         onPressed: () {
                           final dirPath = widget.client.currentDirectory?.path ?? '~';
@@ -197,7 +197,7 @@ class _FileExplorerScreenState extends State<FileExplorerScreen> {
                         border: Border.all(color: WizardColors.borderSubtle),
                       ),
                       child: preview.isBinary
-                          ? const Center(
+                          ? Center(
                               child: Text(
                                 'Binary file — tap "Open on Desktop" to view in its desktop application.',
                                 textAlign: TextAlign.center,
@@ -209,7 +209,7 @@ class _FileExplorerScreenState extends State<FileExplorerScreen> {
                               child: SelectableText(
                                 preview.content +
                                     (preview.truncated ? '\n\n... (preview truncated at 128 KB)' : ''),
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontFamily: 'monospace',
                                   fontSize: 12,
                                   color: WizardColors.textPrimary,
@@ -243,7 +243,7 @@ class _FileExplorerScreenState extends State<FileExplorerScreen> {
               children: [
                 Row(
                   children: [
-                    const Expanded(
+                    Expanded(
                       child: Text(
                         'Omarchy File Explorer',
                         style: TextStyle(
@@ -276,19 +276,19 @@ class _FileExplorerScreenState extends State<FileExplorerScreen> {
                               client.stageTerminalInDirectory(listing.path);
                               widget.onOpenTerminalInPath();
                             },
-                      icon: const Icon(Icons.terminal_rounded, color: WizardColors.emeraldSage),
+                      icon: Icon(Icons.terminal_rounded, color: WizardColors.emeraldSage),
                     ),
                     IconButton(
                       tooltip: 'New Folder',
                       onPressed: listing == null ? null : () => _newFolder(listing.path),
-                      icon: const Icon(Icons.create_new_folder_outlined, color: WizardColors.cyanArcane),
+                      icon: Icon(Icons.create_new_folder_outlined, color: WizardColors.cyanArcane),
                     ),
                     IconButton(
                       tooltip: 'Refresh',
                       onPressed: client.filesLoading
                           ? null
                           : () => client.browseDirectory(listing?.path),
-                      icon: const Icon(Icons.refresh_rounded, color: WizardColors.cyanArcane),
+                      icon: Icon(Icons.refresh_rounded, color: WizardColors.cyanArcane),
                     ),
                   ],
                 ),
@@ -333,7 +333,7 @@ class _FileExplorerScreenState extends State<FileExplorerScreen> {
                           listing?.path ?? 'Loading...',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontFamily: 'monospace',
                             fontSize: 12,
                             color: WizardColors.textPrimary,
@@ -349,7 +349,7 @@ class _FileExplorerScreenState extends State<FileExplorerScreen> {
                                   'hyprland.launch_files',
                                   params: {'path': listing.path},
                                 ),
-                        icon: const Icon(Icons.launch_rounded, size: 17, color: WizardColors.cyanArcane),
+                        icon: Icon(Icons.launch_rounded, size: 17, color: WizardColors.cyanArcane),
                       ),
                       IconButton(
                         visualDensity: VisualDensity.compact,
@@ -360,7 +360,7 @@ class _FileExplorerScreenState extends State<FileExplorerScreen> {
                                   'hyprland.launch_terminal',
                                   params: {'path': listing.path},
                                 ),
-                        icon: const Icon(Icons.terminal_rounded, size: 17, color: WizardColors.goldStarlight),
+                        icon: Icon(Icons.terminal_rounded, size: 17, color: WizardColors.goldStarlight),
                       ),
                       IconButton(
                         visualDensity: VisualDensity.compact,
@@ -371,7 +371,7 @@ class _FileExplorerScreenState extends State<FileExplorerScreen> {
                                 client.stageAgentInDirectory(listing.path);
                                 widget.onCastWizardInPath();
                               },
-                        icon: const Icon(Icons.auto_fix_high, size: 17, color: WizardColors.violetArcane),
+                        icon: Icon(Icons.auto_fix_high, size: 17, color: WizardColors.violetArcane),
                       ),
                     ],
                   ),
@@ -380,7 +380,7 @@ class _FileExplorerScreenState extends State<FileExplorerScreen> {
                   const SizedBox(height: 8),
                   Text(
                     client.filesError!,
-                    style: const TextStyle(color: WizardColors.coralError, fontSize: 12),
+                    style: TextStyle(color: WizardColors.coralError, fontSize: 12),
                   ),
                 ],
               ],
@@ -393,7 +393,7 @@ class _FileExplorerScreenState extends State<FileExplorerScreen> {
                     ? Center(
                         child: Text(
                           listing == null ? 'Connect to Omarchy bridge to browse files.' : 'Folder is empty',
-                          style: const TextStyle(color: WizardColors.textMuted),
+                          style: TextStyle(color: WizardColors.textMuted),
                         ),
                       )
                     : RefreshIndicator(
@@ -420,14 +420,14 @@ class _FileExplorerScreenState extends State<FileExplorerScreen> {
                                   entry.name,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     color: WizardColors.textPrimary,
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
                                 subtitle: Text(
                                   entry.isDir ? 'Directory' : _formatSize(entry.size),
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     color: WizardColors.textMuted,
                                     fontSize: 11,
                                   ),

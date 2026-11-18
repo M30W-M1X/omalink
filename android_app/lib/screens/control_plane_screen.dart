@@ -46,11 +46,11 @@ class _ControlPlaneScreenState extends State<ControlPlaneScreen> {
         backgroundColor: WizardColors.surfaceCard,
         title: Text(
           title,
-          style: const TextStyle(color: WizardColors.textPrimary),
+          style: TextStyle(color: WizardColors.textPrimary),
         ),
         content: Text(
           body,
-          style: const TextStyle(color: WizardColors.textMuted),
+          style: TextStyle(color: WizardColors.textMuted),
         ),
         actions: [
           TextButton(
@@ -98,7 +98,7 @@ class _ControlPlaneScreenState extends State<ControlPlaneScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'Omarchy Control Plane',
                         style: TextStyle(
                           color: WizardColors.textPrimary,
@@ -109,7 +109,7 @@ class _ControlPlaneScreenState extends State<ControlPlaneScreen> {
                       const SizedBox(height: 2),
                       Text(
                         '${s.hostname} • Omarchy ${s.osVersion} • up ${_formatUptime(s.uptimeSeconds)}',
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: WizardColors.textMuted,
                           fontSize: 12,
                         ),
@@ -127,7 +127,7 @@ class _ControlPlaneScreenState extends State<ControlPlaneScreen> {
                       ),
                     );
                   },
-                  icon: const Icon(Icons.devices_rounded, color: WizardColors.emeraldSage),
+                  icon: Icon(Icons.devices_rounded, color: WizardColors.emeraldSage),
                 ),
                 FilledButton.tonalIcon(
                   onPressed: () {
@@ -156,7 +156,7 @@ class _ControlPlaneScreenState extends State<ControlPlaneScreen> {
                           height: 18,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Icon(Icons.refresh_rounded, color: WizardColors.cyanArcane),
+                      : Icon(Icons.refresh_rounded, color: WizardColors.cyanArcane),
                 ),
               ],
             ),
@@ -362,7 +362,7 @@ class _ControlPlaneScreenState extends State<ControlPlaneScreen> {
                                         : s.audio.player.identity,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       color: WizardColors.textPrimary,
                                       fontWeight: FontWeight.w700,
                                       fontSize: 13,
@@ -377,7 +377,7 @@ class _ControlPlaneScreenState extends State<ControlPlaneScreen> {
                                       ].join(' • '),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                         color: WizardColors.textMuted,
                                         fontSize: 11,
                                       ),
@@ -388,7 +388,7 @@ class _ControlPlaneScreenState extends State<ControlPlaneScreen> {
                             const SizedBox(width: 8),
                             Text(
                               s.audio.player.identity.toUpperCase(),
-                              style: const TextStyle(
+                              style: TextStyle(
                                 color: WizardColors.emeraldSage,
                                 fontSize: 10,
                                 fontWeight: FontWeight.w800,
@@ -401,7 +401,7 @@ class _ControlPlaneScreenState extends State<ControlPlaneScreen> {
                     ],
                     if (s.audio.players.length > 1) ...[
                       const SizedBox(height: 10),
-                      const Text(
+                      Text(
                         'Media Player',
                         style: TextStyle(color: WizardColors.textMuted, fontSize: 11),
                       ),
@@ -423,7 +423,7 @@ class _ControlPlaneScreenState extends State<ControlPlaneScreen> {
                     ],
                     if (s.audio.sinks.isNotEmpty) ...[
                       const SizedBox(height: 12),
-                      const Text(
+                      Text(
                         'Output Device',
                         style: TextStyle(color: WizardColors.textMuted, fontSize: 11),
                       ),
@@ -464,11 +464,11 @@ class _ControlPlaneScreenState extends State<ControlPlaneScreen> {
                       const SizedBox(height: 8),
                       Row(
                         children: [
-                          const Icon(Icons.brightness_6_rounded, size: 18, color: WizardColors.goldStarlight),
+                          Icon(Icons.brightness_6_rounded, size: 18, color: WizardColors.goldStarlight),
                           const SizedBox(width: 8),
                           Text(
                             'Brightness: ${s.brightness.percent}%',
-                            style: const TextStyle(color: WizardColors.textPrimary, fontSize: 13),
+                            style: TextStyle(color: WizardColors.textPrimary, fontSize: 13),
                           ),
                           const Spacer(),
                           OutlinedButton(
@@ -560,19 +560,19 @@ class _ControlPlaneScreenState extends State<ControlPlaneScreen> {
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.window_rounded, size: 16, color: WizardColors.cyanArcane),
+                            Icon(Icons.window_rounded, size: 16, color: WizardColors.cyanArcane),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
                                 s.hyprland.activeWindow.title,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(color: WizardColors.textPrimary, fontSize: 12),
+                                style: TextStyle(color: WizardColors.textPrimary, fontSize: 12),
                               ),
                             ),
                             TextButton(
                               onPressed: () => _dispatch('hyprland.close_active'),
-                              child: const Text(
+                              child: Text(
                                 'Close',
                                 style: TextStyle(color: WizardColors.coralError, fontSize: 12),
                               ),
@@ -678,7 +678,7 @@ class _ControlPlaneScreenState extends State<ControlPlaneScreen> {
                       s.security.passwordlessSudo
                           ? 'omarchy-sudo-passwordless is currently active on ${s.hostname}. You can revoke it immediately from your phone.'
                           : 'Enabling passwordless sudo opens Omarchy\'s local desktop confirmation & sudo prompt for safety.',
-                      style: const TextStyle(color: WizardColors.textMuted, fontSize: 12),
+                      style: TextStyle(color: WizardColors.textMuted, fontSize: 12),
                     ),
                     const SizedBox(height: 10),
                     Wrap(
@@ -842,7 +842,7 @@ class _SectionTitle extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       text,
-      style: const TextStyle(
+      style: TextStyle(
         color: WizardColors.textMuted,
         fontSize: 11,
         fontWeight: FontWeight.w800,
@@ -892,7 +892,7 @@ class _VitalTile extends StatelessWidget {
               value,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              style: TextStyle(
                 color: WizardColors.textPrimary,
                 fontSize: 14,
                 fontWeight: FontWeight.w700,
@@ -901,7 +901,7 @@ class _VitalTile extends StatelessWidget {
             const SizedBox(height: 2),
             Text(
               sub,
-              style: const TextStyle(color: WizardColors.textMuted, fontSize: 11),
+              style: TextStyle(color: WizardColors.textMuted, fontSize: 11),
             ),
           ],
         ),
@@ -916,36 +916,37 @@ class _ActionChipButton extends StatelessWidget {
     required this.label,
     required this.onTap,
     this.active = false,
-    this.activeColor = WizardColors.cyanArcane,
+    this.activeColor,
   });
 
   final IconData icon;
   final String label;
   final VoidCallback onTap;
   final bool active;
-  final Color activeColor;
+  final Color? activeColor;
 
   @override
   Widget build(BuildContext context) {
+    final accent = activeColor ?? WizardColors.cyanArcane;
     return ActionChip(
       avatar: Icon(
         icon,
         size: 16,
-        color: active ? activeColor : WizardColors.textMuted,
+        color: active ? accent : WizardColors.textMuted,
       ),
       label: Text(
         label,
         style: TextStyle(
-          color: active ? activeColor : WizardColors.textPrimary,
+          color: active ? accent : WizardColors.textPrimary,
           fontSize: 12,
           fontWeight: active ? FontWeight.w700 : FontWeight.w500,
         ),
       ),
       side: BorderSide(
-        color: active ? activeColor.withValues(alpha: 0.6) : WizardColors.borderSubtle,
+        color: active ? accent.withValues(alpha: 0.6) : WizardColors.borderSubtle,
       ),
       backgroundColor: active
-          ? activeColor.withValues(alpha: 0.14)
+          ? accent.withValues(alpha: 0.14)
           : WizardColors.surfaceElevated,
       onPressed: onTap,
     );
@@ -961,7 +962,7 @@ class _FallbackArt extends StatelessWidget {
       width: 44,
       height: 44,
       color: WizardColors.obsidian,
-      child: const Icon(
+      child: Icon(
         Icons.music_note_rounded,
         color: WizardColors.cyanArcane,
         size: 22,

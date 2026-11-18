@@ -91,7 +91,7 @@ class _ContinuityScreenState extends State<ContinuityScreen>
           backgroundColor: WizardColors.obsidian,
           appBar: AppBar(
             backgroundColor: WizardColors.obsidian,
-            title: const Text(
+            title: Text(
               'Omarchy Continuity',
               style: TextStyle(
                 color: WizardColors.textPrimary,
@@ -102,7 +102,7 @@ class _ContinuityScreenState extends State<ContinuityScreen>
               IconButton(
                 tooltip: 'Refresh Continuity',
                 onPressed: client.refreshContinuityState,
-                icon: const Icon(Icons.refresh_rounded, color: WizardColors.cyanArcane),
+                icon: Icon(Icons.refresh_rounded, color: WizardColors.cyanArcane),
               ),
             ],
           ),
@@ -119,12 +119,12 @@ class _ContinuityScreenState extends State<ContinuityScreen>
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.auto_awesome, size: 16, color: WizardColors.cyanArcane),
+                      Icon(Icons.auto_awesome, size: 16, color: WizardColors.cyanArcane),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           banner,
-                          style: const TextStyle(color: WizardColors.textPrimary, fontSize: 12),
+                          style: TextStyle(color: WizardColors.textPrimary, fontSize: 12),
                         ),
                       ),
                     ],
@@ -142,7 +142,7 @@ class _ContinuityScreenState extends State<ContinuityScreen>
                     children: [
                       Row(
                         children: [
-                          const Expanded(
+                          Expanded(
                             child: Text(
                               'PHONE → DESKTOP ALERTS',
                               style: TextStyle(
@@ -175,14 +175,14 @@ class _ContinuityScreenState extends State<ContinuityScreen>
                         ],
                       ),
                       const SizedBox(height: 8),
-                      const Text(
+                      Text(
                         'Mirror incoming phone messages and calls onto your Hyprland desktop in real time.',
                         style: TextStyle(color: WizardColors.textMuted, fontSize: 12),
                       ),
                       const SizedBox(height: 8),
                       SwitchListTile(
                         contentPadding: EdgeInsets.zero,
-                        title: const Text(
+                        title: Text(
                           'Relay Messages & App Notifications',
                           style: TextStyle(color: WizardColors.textPrimary, fontSize: 14),
                         ),
@@ -193,7 +193,7 @@ class _ContinuityScreenState extends State<ContinuityScreen>
                       ),
                       SwitchListTile(
                         contentPadding: EdgeInsets.zero,
-                        title: const Text(
+                        title: Text(
                           'Critical Popups for Incoming Calls',
                           style: TextStyle(color: WizardColors.textPrimary, fontSize: 14),
                         ),
@@ -239,7 +239,7 @@ class _ContinuityScreenState extends State<ContinuityScreen>
                                 category: 'call',
                               ),
                             ),
-                            icon: const Icon(Icons.call_rounded, size: 16, color: WizardColors.emeraldSage),
+                            icon: Icon(Icons.call_rounded, size: 16, color: WizardColors.emeraldSage),
                             label: const Text('Test Call'),
                           ),
                         ],
@@ -257,7 +257,7 @@ class _ContinuityScreenState extends State<ContinuityScreen>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'UNIVERSAL CLIPBOARD',
                         style: TextStyle(
                           color: WizardColors.textMuted,
@@ -304,7 +304,7 @@ class _ContinuityScreenState extends State<ContinuityScreen>
                             client.desktopClipboardPreview,
                             maxLines: 3,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: WizardColors.textMuted,
                               fontSize: 12,
                               fontFamily: 'monospace',
@@ -325,7 +325,7 @@ class _ContinuityScreenState extends State<ContinuityScreen>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'CONTINUE ON OMARCHY',
                         style: TextStyle(
                           color: WizardColors.textMuted,
@@ -335,7 +335,7 @@ class _ContinuityScreenState extends State<ContinuityScreen>
                         ),
                       ),
                       const SizedBox(height: 6),
-                      const Text(
+                      Text(
                         'Tip: In Chrome, YouTube, or Spotify on Android, tap Share → Continue on Omarchy.',
                         style: TextStyle(color: WizardColors.textMuted, fontSize: 12),
                       ),
@@ -345,10 +345,10 @@ class _ContinuityScreenState extends State<ContinuityScreen>
                           Expanded(
                             child: TextField(
                               controller: _handoffController,
-                              style: const TextStyle(color: WizardColors.textPrimary, fontSize: 13),
+                              style: TextStyle(color: WizardColors.textPrimary, fontSize: 13),
                               decoration: InputDecoration(
                                 hintText: 'Paste Chrome URL, Spotify link, or text...',
-                                hintStyle: const TextStyle(color: WizardColors.textMuted),
+                                hintStyle: TextStyle(color: WizardColors.textMuted),
                                 isDense: true,
                                 filled: true,
                                 fillColor: WizardColors.obsidian,
@@ -416,7 +416,7 @@ class _ContinuityScreenState extends State<ContinuityScreen>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'RECENT CONTINUITY ACTIVITY',
                         style: TextStyle(
                           color: WizardColors.textMuted,
@@ -427,7 +427,7 @@ class _ContinuityScreenState extends State<ContinuityScreen>
                       ),
                       const SizedBox(height: 8),
                       if (client.continuityActivity.isEmpty)
-                        const Text(
+                        Text(
                           'No relayed notifications, clipboard syncs, or handoffs yet.',
                           style: TextStyle(color: WizardColors.textMuted, fontSize: 12),
                         )
@@ -450,7 +450,7 @@ class _ContinuityScreenState extends State<ContinuityScreen>
                                     children: [
                                       Text(
                                         item['title']?.toString() ?? '',
-                                        style: const TextStyle(
+                                        style: TextStyle(
                                           color: WizardColors.textPrimary,
                                           fontSize: 13,
                                           fontWeight: FontWeight.w600,
@@ -461,7 +461,7 @@ class _ContinuityScreenState extends State<ContinuityScreen>
                                           item['body']?.toString() ?? '',
                                           maxLines: 2,
                                           overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
+                                          style: TextStyle(
                                             color: WizardColors.textMuted,
                                             fontSize: 12,
                                           ),

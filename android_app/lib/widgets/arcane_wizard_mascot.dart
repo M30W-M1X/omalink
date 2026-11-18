@@ -160,7 +160,7 @@ class _ArcaneWizardMascotState extends State<ArcaneWizardMascot>
                     textAlign: TextAlign.center,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: WizardColors.textPrimary,
                       fontSize: 13,
                       fontWeight: FontWeight.w500,

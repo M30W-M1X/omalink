@@ -23,8 +23,8 @@ class SpellbookScreen extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -36,7 +36,7 @@ class SpellbookScreen extends StatelessWidget {
                     fontWeight: FontWeight.w800,
                   ),
                 ),
-                SizedBox(height: 2),
+                const SizedBox(height: 2),
                 Text(
                   'Recent tasks cast on Omarchy',
                   style: TextStyle(
@@ -49,9 +49,9 @@ class SpellbookScreen extends StatelessWidget {
           ),
           Expanded(
             child: tasks.isEmpty
-                ? const Center(
+                ? Center(
                     child: Padding(
-                      padding: EdgeInsets.all(32),
+                      padding: const EdgeInsets.all(32),
                       child: Text(
                         'Your spellbook is empty.\nCast your first task from the Wizard tab!',
                         textAlign: TextAlign.center,
@@ -102,7 +102,7 @@ class SpellbookScreen extends StatelessWidget {
               children: [
                 Text(
                   task.prompt,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: WizardColors.textPrimary,
                     fontSize: 17,
                     fontWeight: FontWeight.w700,
@@ -111,7 +111,7 @@ class SpellbookScreen extends StatelessWidget {
                 const SizedBox(height: 6),
                 Text(
                   '${task.agent} • ${task.mode}/${task.effort} • ${task.cwd}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: WizardColors.textMuted,
                     fontSize: 12,
                   ),
@@ -189,7 +189,7 @@ class _SpellHistoryCard extends StatelessWidget {
                       task.prompt,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: WizardColors.textPrimary,
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
@@ -201,7 +201,7 @@ class _SpellHistoryCard extends StatelessWidget {
                         task.summary,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: WizardColors.textMuted,
                           fontSize: 12,
                         ),

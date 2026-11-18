@@ -11,6 +11,9 @@ class WizardSettings {
     this.defaultEffort = 'high',
     this.relayNotifications = true,
     this.relayCalls = true,
+    this.syncOmarchyTheme = true,
+    this.themeOverride = 'tokyo-night',
+    this.cachedThemeJson = '',
   });
 
   final String host;
@@ -22,6 +25,9 @@ class WizardSettings {
   final String defaultEffort;
   final bool relayNotifications;
   final bool relayCalls;
+  final bool syncOmarchyTheme;
+  final String themeOverride;
+  final String cachedThemeJson;
 
   String get httpBaseUrl => 'http://$host:$port';
   String get wsUrl => 'ws://$host:$port/ws';
@@ -38,6 +44,9 @@ class WizardSettings {
     String? defaultEffort,
     bool? relayNotifications,
     bool? relayCalls,
+    bool? syncOmarchyTheme,
+    String? themeOverride,
+    String? cachedThemeJson,
   }) {
     return WizardSettings(
       host: host ?? this.host,
@@ -49,6 +58,9 @@ class WizardSettings {
       defaultEffort: defaultEffort ?? this.defaultEffort,
       relayNotifications: relayNotifications ?? this.relayNotifications,
       relayCalls: relayCalls ?? this.relayCalls,
+      syncOmarchyTheme: syncOmarchyTheme ?? this.syncOmarchyTheme,
+      themeOverride: themeOverride ?? this.themeOverride,
+      cachedThemeJson: cachedThemeJson ?? this.cachedThemeJson,
     );
   }
 }
@@ -63,6 +75,9 @@ class SettingsStore {
   static const _keyEffort = 'wizard_effort';
   static const _keyRelayNotif = 'wizard_relay_notifications';
   static const _keyRelayCalls = 'wizard_relay_calls';
+  static const _keySyncTheme = 'wizard_sync_omarchy_theme';
+  static const _keyThemeOverride = 'wizard_theme_override';
+  static const _keyCachedTheme = 'wizard_cached_theme_json';
 
   Future<WizardSettings> load() async {
     final prefs = await SharedPreferences.getInstance();
@@ -76,6 +91,9 @@ class SettingsStore {
       defaultEffort: prefs.getString(_keyEffort) ?? 'high',
       relayNotifications: prefs.getBool(_keyRelayNotif) ?? true,
       relayCalls: prefs.getBool(_keyRelayCalls) ?? true,
+      syncOmarchyTheme: prefs.getBool(_keySyncTheme) ?? true,
+      themeOverride: prefs.getString(_keyThemeOverride) ?? 'tokyo-night',
+      cachedThemeJson: prefs.getString(_keyCachedTheme) ?? '',
     );
   }
 
@@ -90,5 +108,8 @@ class SettingsStore {
     await prefs.setString(_keyEffort, settings.defaultEffort);
     await prefs.setBool(_keyRelayNotif, settings.relayNotifications);
     await prefs.setBool(_keyRelayCalls, settings.relayCalls);
+    await prefs.setBool(_keySyncTheme, settings.syncOmarchyTheme);
+    await prefs.setString(_keyThemeOverride, settings.themeOverride);
+    await prefs.setString(_keyCachedTheme, settings.cachedThemeJson);
   }
 }

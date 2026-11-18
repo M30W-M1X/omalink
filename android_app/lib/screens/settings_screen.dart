@@ -73,7 +73,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
         children: [
-          const Text(
+          Text(
             'Sanctum Settings',
             style: TextStyle(
               color: WizardColors.textPrimary,
@@ -82,21 +82,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
           const SizedBox(height: 4),
-          const Text(
+          Text(
             'Pair with your Omarchy AI agent bridge & configure alerts',
             style: TextStyle(color: WizardColors.textMuted, fontSize: 13),
           ),
           const SizedBox(height: 16),
           Card(
             child: SwitchListTile(
-              title: const Text(
+              title: Text(
                 'Demo Familiar Mode',
                 style: TextStyle(
                   color: WizardColors.textPrimary,
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              subtitle: const Text(
+              subtitle: Text(
                 'Simulate agent spells & animations locally without a bridge connection.',
                 style: TextStyle(color: WizardColors.textMuted, fontSize: 12),
               ),
@@ -112,7 +112,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Text(
+                  Text(
                     'OMARCHY BRIDGE PAIRING',
                     style: TextStyle(
                       color: WizardColors.textMuted,
@@ -183,7 +183,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Text(
+                  Text(
                     'TASK COMPLETION NOTIFICATIONS',
                     style: TextStyle(
                       color: WizardColors.textMuted,
@@ -195,11 +195,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   const SizedBox(height: 6),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text(
+                    title: Text(
                       'Notify when tasks complete',
                       style: TextStyle(color: WizardColors.textPrimary),
                     ),
-                    subtitle: const Text(
+                    subtitle: Text(
                       'Fires an Android alert when a spell finishes or fails.',
                       style: TextStyle(color: WizardColors.textMuted, fontSize: 12),
                     ),
@@ -264,7 +264,101 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'APPEARANCE & OMARCHY THEME',
+                          style: TextStyle(
+                            color: WizardColors.textMuted,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1.1,
+                          ),
+                        ),
+                      ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          for (final dot in [
+                            widget.client.activePalette.obsidian,
+                            widget.client.activePalette.violetArcane,
+                            widget.client.activePalette.cyanArcane,
+                            widget.client.activePalette.emeraldSage,
+                          ])
+                            Container(
+                              width: 10,
+                              height: 10,
+                              margin: const EdgeInsets.only(left: 4),
+                              decoration: BoxDecoration(
+                                color: dot,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: WizardColors.borderSubtle),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(
+                      'Match Omarchy Desktop Theme',
+                      style: TextStyle(color: WizardColors.textPrimary),
+                    ),
+                    subtitle: Text(
+                      widget.client.settings.syncOmarchyTheme
+                          ? 'Live synced: ${widget.client.activePalette.name} (${widget.client.activePalette.isLight ? 'light' : 'dark'})'
+                          : 'Manual override: ${widget.client.activePalette.name}',
+                      style: TextStyle(color: WizardColors.textMuted, fontSize: 12),
+                    ),
+                    activeThumbColor: WizardColors.cyanArcane,
+                    value: widget.client.settings.syncOmarchyTheme,
+                    onChanged: (val) => widget.client.updateThemePreferences(
+                      syncOmarchyTheme: val,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final preset in WizardPalette.presets)
+                        ChoiceChip(
+                          label: Text(preset.name),
+                          selected: widget.client.activePalette.slug == preset.slug,
+                          selectedColor:
+                              WizardColors.violetArcane.withValues(alpha: 0.28),
+                          onSelected: (_) {
+                            if (widget.client.settings.demoMode &&
+                                widget.client.settings.syncOmarchyTheme) {
+                              widget.client.sendControlAction(
+                                'theme.set',
+                                params: {'name': preset.name},
+                              );
+                            } else {
+                              widget.client.updateThemePreferences(
+                                syncOmarchyTheme: false,
+                                themeOverride: preset.slug,
+                              );
+                            }
+                          },
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
                     'OMARCHY DEFAULT AGENT',
                     style: TextStyle(
                       color: WizardColors.textMuted,
