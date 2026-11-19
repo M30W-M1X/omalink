@@ -1,4 +1,4 @@
-package com.omarchy.wizard
+package com.omarchy.omalink
 
 import android.content.Context
 import android.service.quicksettings.Tile

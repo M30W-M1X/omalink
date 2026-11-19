@@ -240,7 +240,7 @@ def send_desktop_notification_sync(
         cmd = [
             notify_bin,
             "-a",
-            "Omarchy Wizard Phone",
+            "OmaLink Phone",
             "-u",
             norm_urgency,
             "-i",

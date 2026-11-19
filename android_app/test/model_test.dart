@@ -2,12 +2,12 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:omarchy_wizard/models/agent_task.dart';
-import 'package:omarchy_wizard/models/system_control.dart';
-import 'package:omarchy_wizard/models/wizard_mood.dart';
-import 'package:omarchy_wizard/services/notification_service.dart';
-import 'package:omarchy_wizard/services/tls_overrides.dart';
-import 'package:omarchy_wizard/theme/wizard_theme.dart';
+import 'package:omalink/models/agent_task.dart';
+import 'package:omalink/models/system_control.dart';
+import 'package:omalink/models/wizard_mood.dart';
+import 'package:omalink/services/notification_service.dart';
+import 'package:omalink/services/tls_overrides.dart';
+import 'package:omalink/theme/wizard_theme.dart';
 
 void main() {
   test('AgentTask.fromJson parses bridge payload', () {

@@ -8,8 +8,8 @@ import qs.Ui
 
 Panel {
   id: root
-  moduleName: "wizard.panel"
-  ipcTarget: "wizard.panel"
+  moduleName: "omalink.panel"
+  ipcTarget: "omalink.panel"
 
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
@@ -49,11 +49,11 @@ Panel {
   }
 
   readonly property string barTooltip: {
-    if (!bridgeActive) return "Omarchy Wizard · Bridge Offline"
+    if (!bridgeActive) return "OmaLink · Bridge Offline"
     var bat = phoneBattery >= 0 ? (" · Phone " + phoneBattery + "%" + (phoneCharging ? " ⚡" : "")) : ""
-    if (runningTasks > 0) return "Omarchy Wizard · Casting (" + runningTasks + " running)" + bat
-    if (connectedClients > 0) return "Omarchy Wizard · Connected (" + connectedClients + " device)" + bat
-    return "Omarchy Wizard · Bridge Active" + bat
+    if (runningTasks > 0) return "OmaLink · Casting (" + runningTasks + " running)" + bat
+    if (connectedClients > 0) return "OmaLink · Connected (" + connectedClients + " device)" + bat
+    return "OmaLink · Bridge Active" + bat
   }
 
   function applySnapshot(raw) {
@@ -256,7 +256,7 @@ Panel {
             spacing: Style.space(2)
 
             Text {
-              text: "Omarchy Wizard"
+              text: "OmaLink"
               textFormat: Text.PlainText
               color: root.foreground
               font.family: root.fontFamily
@@ -314,7 +314,19 @@ Panel {
             width: parent.width
           }
 
+          Button {
+            visible: !root.bridgeActive
+            text: root.powerBusy ? "Starting OmaLink Bridge..." : "Install & Start OmaLink Bridge"
+            enabled: !root.powerBusy
+            foreground: root.foreground
+            fontFamily: root.fontFamily
+            bordered: true
+            width: parent.width
+            onClicked: root.toggleBridge()
+          }
+
           Row {
+            visible: root.bridgeActive
             width: parent.width
             spacing: Style.space(6)
 

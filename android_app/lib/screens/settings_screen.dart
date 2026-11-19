@@ -112,8 +112,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       SnackBar(
         content: Text(
           ok
-              ? 'Paired via omarchy-wizard:// URI ✨'
-              : 'Copy an omarchy-wizard://pair?... URI or scan the Omarchy top bar QR.',
+              ? 'Paired via omalink:// URI ✨'
+              : 'Copy an omalink://pair?... URI or scan the OmaLink top-bar QR.',
         ),
       ),
     );
@@ -200,7 +200,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     enabled: !_demoMode,
                     obscureText: _obscureToken,
                     decoration: InputDecoration(
-                      labelText: 'Pairing Token (~/.config/omarchy-wizard/token)',
+                      labelText: 'Pairing Token (~/.config/omalink/token)',
                       suffixIcon: IconButton(
                         icon: Icon(
                           _obscureToken

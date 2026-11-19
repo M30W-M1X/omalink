@@ -21,13 +21,13 @@ class NotificationService {
   NotificationService._();
   static final NotificationService instance = NotificationService._();
 
-  static const String _channelId = 'omarchy_wizard_tasks';
-  static const String _channelName = 'Wizard Spell Completions';
+  static const String _channelId = 'omalink_tasks';
+  static const String _channelName = 'OmaLink Agent Alerts';
   static const String _channelDescription =
       'Notifications when your Omarchy AI agent completes or fails a task.';
 
-  static const String _vitalsChannelId = 'omarchy_wizard_vitals';
-  static const String _vitalsChannelName = 'Omarchy Vitals & Agy Limits';
+  static const String _vitalsChannelId = 'omalink_vitals';
+  static const String _vitalsChannelName = 'OmaLink Vitals & Agy Limits';
   static const String _vitalsChannelDescription =
       'Silent ongoing shade notification with live machine vitals and Antigravity usage limits.';
   static const int _vitalsNotificationId = 4243;

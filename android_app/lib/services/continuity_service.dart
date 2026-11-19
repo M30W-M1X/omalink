@@ -64,9 +64,9 @@ class ContinuityService {
   static final ContinuityService instance = ContinuityService._();
 
   static const MethodChannel _method =
-      MethodChannel('com.omarchy.wizard/continuity');
+      MethodChannel('com.omarchy.omalink/continuity');
   static const EventChannel _events =
-      EventChannel('com.omarchy.wizard/continuity_events');
+      EventChannel('com.omarchy.omalink/continuity_events');
 
   StreamSubscription<dynamic>? _sub;
 
@@ -159,7 +159,7 @@ class ContinuityService {
           .whereType<Map<dynamic, dynamic>>()
           .map(
             (m) => DiscoveredBridge(
-              name: m['name']?.toString() ?? 'Omarchy Wizard',
+              name: m['name']?.toString() ?? 'OmaLink',
               host: m['host']?.toString() ?? '',
               port: (m['port'] as num?)?.toInt() ?? 7842,
               tls: m['tls'] == true,

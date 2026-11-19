@@ -1,10 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
-import 'package:omarchy_wizard/main.dart';
-import 'package:omarchy_wizard/models/wizard_avatar.dart';
-import 'package:omarchy_wizard/models/wizard_mood.dart';
-import 'package:omarchy_wizard/services/bridge_client.dart';
-import 'package:omarchy_wizard/widgets/arcane_wizard_mascot.dart';
+import 'package:omalink/main.dart';
+import 'package:omalink/models/wizard_avatar.dart';
+import 'package:omalink/models/wizard_mood.dart';
+import 'package:omalink/services/bridge_client.dart';
+import 'package:omalink/widgets/arcane_wizard_mascot.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {

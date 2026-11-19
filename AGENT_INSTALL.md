@@ -1,6 +1,6 @@
-# AI Agent Install Guide (Omarchy Linux)
+# AI Agent Install Guide — OmaLink (Omarchy Linux)
 
-This guide is designed for **AI coding agents running directly inside Omarchy Linux** (such as Antigravity `agy`, Claude Code, Codex, OpenCode, Kimi, or Pi) to install, configure, and verify **Omarchy Wizard** autonomously with zero interactive prompts.
+This guide is designed for **AI coding agents running directly inside Omarchy Linux** (such as Antigravity `agy`, Claude Code, Codex, OpenCode, Kimi, or Pi) to install, configure, and verify **OmaLink** autonomously with zero interactive prompts.
 
 ---
 
@@ -8,7 +8,7 @@ This guide is designed for **AI coding agents running directly inside Omarchy Li
 
 Paste this into any AI agent running on your Omarchy desktop:
 
-> Install **Omarchy Wizard** from `https://github.com/M30W-M1X/omarchy-wizard` by following `AGENT_INSTALL.md` in that repo. Clone or update it, run `./install.sh --json`, verify `omarchy-wizard-bridge.service` and `/api/ping`, validate and enable the `wizard.panel` top-bar plugin, run the bridge unit tests, check optional tools and firewall requirements (ask before running any `sudo` command), and give me the latest Android APK download link plus pairing instructions.
+> Install **OmaLink** from `https://github.com/M30W-M1X/omalink` by following `AGENT_INSTALL.md` in that repo. Clone or update it, run `./install.sh --json`, verify `omalink-bridge.service` and `/api/ping`, validate and enable the `omalink.panel` top-bar plugin, run the bridge unit tests, check optional tools and firewall requirements (ask before running any `sudo` command), and give me the latest Android APK download link plus pairing instructions.
 
 ---
 
@@ -31,30 +31,32 @@ Requirements:
 
 ### Step 2 — Run the Non-Interactive Installer
 
-If the repository is not cloned yet, either run the one-liner or clone to `~/.local/share/omarchy-wizard` (or `~/Projects/omarchy_wizard`):
-
 ```bash
-# Option A: Direct one-liner (clones to ~/.local/share/omarchy-wizard if not in repo)
-curl -fsSL https://raw.githubusercontent.com/M30W-M1X/omarchy-wizard/master/install.sh | bash -s -- --json
+# Option A: Direct one-liner (clones to ~/.local/share/omalink if not already in repo)
+curl -fsSL https://raw.githubusercontent.com/M30W-M1X/omalink/master/install.sh | bash -s -- --json
 
-# Option B: From an existing clone
-git clone https://github.com/M30W-M1X/omarchy-wizard.git ~/Projects/omarchy_wizard
-cd ~/Projects/omarchy_wizard
+# Option B: Install as an Omarchy Plugin Marketplace git plugin
+omarchy plugin add https://github.com/M30W-M1X/omalink.git --enable --yes
+~/.config/omarchy/plugins/omalink.panel/install.sh --no-plugin --no-restart-shell --json
+
+# Option C: From an existing clone
+git clone https://github.com/M30W-M1X/omalink.git ~/.local/share/omalink
+cd ~/.local/share/omalink
 ./install.sh --json
 ```
 
 Optional flags:
 - `--port 7842` — customize listen port (default `7842`).
 - `--tls` — enable self-signed TLS encryption (`https://` + `wss://`) with SHA-256 fingerprint pinning.
-- `--no-plugin` — skip installing the `wizard.panel` Omarchy top-bar widget.
+- `--no-plugin` — skip installing the `omalink.panel` Omarchy top-bar widget.
 - `--no-restart-shell` — skip restarting `omarchy-shell` (useful in headless SSH sessions).
 
 The script outputs a structured JSON summary:
 - `ok`: `true` when the bridge is running and `/api/ping` returns `200 OK`
 - `bridge_url`: LAN URL (`http://<LAN_IP>:7842`)
 - `tailscale_ip`: Tailscale IPv4 address if Tailscale is active
-- `token_file`: `~/.config/omarchy-wizard/token` (never echo the raw secret into public logs)
-- `plugin_status`: `enabled` when `wizard.panel` passed `omarchy plugin validate`
+- `token_file`: `~/.config/omalink/token` (never echo the raw secret into public logs)
+- `plugin_status`: `enabled` when `omalink.panel` passed `omarchy plugin validate`
 - `missing_optional_tools`: list of optional binaries not currently installed
 
 ### Step 3 — Verify Service, Health & Unit Tests
@@ -97,15 +99,16 @@ sudo ufw allow 7842/tcp
 ### Step 5 — Report Back to the User
 
 Give the user a concise summary with:
-1. **Service & Plugin status** (active bridge port, LAN / Tailscale IP, top-bar Wizard hat badge enabled).
-2. **Android APK download link**: `https://github.com/M30W-M1X/omarchy-wizard/releases/latest` (download `app-release.apk`).
+1. **Service & Plugin status** (active bridge port, LAN / Tailscale IP, top-bar `omalink.panel` badge enabled).
+2. **Android APK download link**: `https://github.com/M30W-M1X/omalink/releases/latest` (download `app-release.apk`).
 3. **Pairing instructions**:
-   - Click the **Wizard hat icon in the Omarchy top bar** to display the live pairing QR code (or run `./install.sh --show-pairing` locally in a private terminal).
-   - Open **Omarchy Wizard** on Android -> **Sanctum** -> **Scan QR Code** (or **Auto-Discover LAN**).
+   - Click the **OmaLink icon in the Omarchy top bar** to display the live pairing QR code (or run `./install.sh --show-pairing` locally in a private terminal).
+   - Scan with your phone camera (opens `omalink://pair?...`) or open **OmaLink** on Android -> **Sanctum** -> **Scan LAN (mDNS)**.
 4. **Recommended Android toggles**:
    - **Notification Listener Access** (Continuity screen) — mirrors phone calls & texts to Omarchy with inline replies.
    - **Vitals & Agy Limits Shade** (Sanctum) — pins a silent live card of CPU/RAM/Temp + Agy usage quotas in the Android notification shade.
    - **Sync Omarchy Theme** (Sanctum) — matches the Android app colors live to `~/.config/omarchy/current/theme/colors.toml`.
+   - **Mascot Avatar & App Icon** (Tools or Sanctum) — pick from 5 animated avatars and apply any as your Android Home Screen icon.
 
 ---
 
@@ -113,8 +116,8 @@ Give the user a concise summary with:
 
 | Symptom | Diagnosis & Fix |
 | --- | --- |
-| `bridge_ping_ok: false` | Run `journalctl --user -u omarchy-wizard-bridge.service -n 40 --no-pager`. Check if another process holds port `7842` (`ss -tlnp \| grep 7842`) or re-run with `--port <alt>`. |
+| `bridge_ping_ok: false` | Run `journalctl --user -u omalink-bridge.service -n 40 --no-pager`. Check if another process holds port `7842` (`ss -tlnp \| grep 7842`) or re-run with `--port <alt>`. |
 | Phone cannot reach LAN IP | Check `ufw status` (ask user to run `sudo ufw allow 7842/tcp`) or verify phone and host share the same Wi-Fi/Tailscale network. |
-| Top-bar Wizard icon missing or no QR code | Run `omarchy plugin validate ~/.config/omarchy/plugins/wizard-panel`, `omarchy plugin enable wizard.panel`, and `omarchy-restart-shell`. Ensure `qrencode` is installed. |
+| Top-bar OmaLink icon missing or no QR code | Run `omarchy plugin validate ~/.config/omarchy/plugins/omalink.panel`, `omarchy plugin enable omalink.panel`, and `omarchy-restart-shell`. Ensure `qrencode` is installed. |
 | Remote Desktop black screen or no input | Ensure Wayland session has `WAYLAND_DISPLAY` in systemd user env (`systemctl --user import-environment WAYLAND_DISPLAY HYPRLAND_INSTANCE_SIGNATURE`) and `grim` + `wtype` are installed. |
-| Uninstall cleanly | Run `./install.sh --uninstall` (add `--purge` to also delete `~/.config/omarchy-wizard`). |
+| Uninstall cleanly | Run `./install.sh --uninstall` (add `--purge` to also delete `~/.config/omalink`). |

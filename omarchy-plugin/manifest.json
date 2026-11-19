@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "id": "wizard.panel",
-  "name": "Omarchy Wizard",
-  "version": "1.0.0",
-  "author": "Omarchy Wizard",
+  "id": "omalink.panel",
+  "name": "OmaLink",
+  "version": "3.0.0",
+  "author": "M30W-M1X",
   "license": "MIT",
-  "description": "KDE-Connect-style status badge and control panel for the Omarchy Wizard Android companion bridge.",
+  "description": "Android Continuity, Remote Desktop, Trackpad, OS Control, and AI Agent companion bridge for Omarchy Linux.",
   "kinds": [
     "bar-widget"
   ],
@@ -13,8 +13,8 @@
     "barWidget": "Panel.qml"
   },
   "barWidget": {
-    "displayName": "Omarchy Wizard",
-    "description": "Shows whether the Omarchy Wizard Android bridge is active, how many devices are connected, and lets you copy pairing details or toggle the service.",
+    "displayName": "OmaLink",
+    "description": "Shows OmaLink bridge status, pairing QR code, phone battery, quick message replies, and lets you start or stop the companion bridge.",
     "category": "Status",
     "allowMultiple": false,
     "defaultSection": "right",

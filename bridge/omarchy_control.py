@@ -1029,7 +1029,7 @@ def execute_control_action_sync(action: str, params: dict[str, Any] | None = Non
         shots_dir = Path.home() / "Pictures" / "Screenshots"
         shots_dir.mkdir(parents=True, exist_ok=True)
         ts_str = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-        dest = shots_dir / f"omarchy-wizard-{ts_str}.png"
+        dest = shots_dir / f"omalink-{ts_str}.png"
         if shutil.which("grim"):
             rc, _, err = _run_cmd(["grim", str(dest)], timeout=5.0)
             if rc == 0 and dest.is_file():

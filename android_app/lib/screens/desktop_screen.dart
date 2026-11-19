@@ -914,7 +914,7 @@ class _DemoHyprlandDesktop extends StatelessWidget {
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          '~ \$ systemctl --user status omarchy-wizard-bridge\n'
+                          '~ \$ systemctl --user status omalink-bridge\n'
                           '● active (running) :7842\n'
                           '~ \$ Tap anywhere to inject Wayland clicks!\n'
                           'Pinch to zoom • Pair live in Sanctum for real screen.',

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Helper CLI for the Omarchy Wizard bar badge plugin."""
+"""Helper CLI for the OmaLink Omarchy top-bar plugin."""
 
 from __future__ import annotations
 
@@ -11,16 +11,22 @@ import shutil
 import socket
 import subprocess
 import sys
+import time
 from urllib import error, request
 
 DEFAULT_PORT = 7842
-SERVICE_UNIT = "omarchy-wizard-bridge.service"
+SERVICE_UNIT = "omalink-bridge.service"
+LEGACY_SERVICE_UNIT = "omarchy-wizard-bridge.service"
 
 
 def get_token_path() -> Path:
     xdg = os.environ.get("XDG_CONFIG_HOME")
     base = Path(xdg) if xdg else Path.home() / ".config"
-    return base / "omarchy-wizard" / "token"
+    primary = base / "omalink" / "token"
+    legacy = base / "omarchy-wizard" / "token"
+    if primary.exists() or not legacy.exists():
+        return primary
+    return legacy
 
 
 def read_token() -> str:
@@ -53,9 +59,51 @@ def fetch_json(url: str, token: str) -> dict | None:
         return None
 
 
-def service_installed() -> bool:
-    unit = Path.home() / ".config" / "systemd" / "user" / SERVICE_UNIT
-    return unit.exists()
+def service_unit_path(name: str = SERVICE_UNIT) -> Path:
+    xdg = os.environ.get("XDG_CONFIG_HOME")
+    base = Path(xdg) if xdg else Path.home() / ".config"
+    return base / "systemd" / "user" / name
+
+
+def find_bridge_script() -> Path | None:
+    candidates = [
+        Path(__file__).resolve().parent.parent / "bridge" / "omarchy_wizard_bridge.py",
+        Path.home() / ".local" / "share" / "omalink" / "bridge" / "omarchy_wizard_bridge.py",
+        Path.home() / "Projects" / "omalink" / "bridge" / "omarchy_wizard_bridge.py",
+        Path.home() / "Projects" / "omarchy_wizard" / "bridge" / "omarchy_wizard_bridge.py",
+    ]
+    for path in candidates:
+        if path.exists():
+            return path
+    return None
+
+
+def ensure_service_installed(port: int) -> bool:
+    """Create and enable omalink-bridge.service automatically when installed via `omarchy plugin add`."""
+    unit = service_unit_path(SERVICE_UNIT)
+    if unit.exists():
+        return True
+    bridge_script = find_bridge_script()
+    if not bridge_script or not shutil.which("systemctl"):
+        return False
+    unit.parent.mkdir(parents=True, exist_ok=True)
+    unit.write_text(
+        "[Unit]\n"
+        "Description=OmaLink Companion Bridge (Android Continuity, Remote Desktop & AI Agents)\n"
+        "After=network-online.target\n\n"
+        "[Service]\n"
+        "Type=simple\n"
+        'Environment="PATH=/usr/share/omarchy/bin:/usr/local/bin:/usr/bin:/bin:%h/.local/bin"\n'
+        f"ExecStart=/usr/bin/python3 {bridge_script} --host 0.0.0.0 --port {port}\n"
+        "Restart=on-failure\n"
+        "RestartSec=3\n\n"
+        "[Install]\n"
+        "WantedBy=default.target\n",
+        encoding="utf-8",
+    )
+    subprocess.run(["systemctl", "--user", "daemon-reload"], check=False, timeout=5)
+    subprocess.run(["systemctl", "--user", "enable", SERVICE_UNIT], check=False, timeout=5)
+    return True
 
 
 def copy_to_clipboard(text: str) -> bool:
@@ -89,7 +137,7 @@ def post_json(url: str, token: str, payload: dict) -> dict | None:
 def generate_qr_png(pair_uri: str) -> str:
     if not pair_uri or not shutil.which("qrencode"):
         return ""
-    out_path = Path(f"/tmp/omarchy-wizard-pair-qr-{os.getuid()}.png")
+    out_path = Path(f"/tmp/omalink-pair-qr-{os.getuid()}.png")
     try:
         subprocess.run(
             ["qrencode", "-o", str(out_path), "-s", "6", "-m", "2", pair_uri],
@@ -149,25 +197,48 @@ def get_status(port: int) -> dict:
 
 
 def toggle_bridge(state: str, port: int) -> dict:
-    bridge_script = Path(__file__).resolve().parent.parent / "bridge" / "omarchy_wizard_bridge.py"
-    if not bridge_script.exists():
-        bridge_script = Path.home() / "Projects" / "omarchy_wizard" / "bridge" / "omarchy_wizard_bridge.py"
+    bridge_script = find_bridge_script()
 
     if state == "on":
-        if service_installed() and shutil.which("systemctl"):
-            subprocess.run(["systemctl", "--user", "start", SERVICE_UNIT], check=False, timeout=5)
-        elif bridge_script.exists():
+        if shutil.which("systemctl"):
+            # Stop legacy unit cleanly if migrating
+            if service_unit_path(LEGACY_SERVICE_UNIT).exists():
+                subprocess.run(
+                    ["systemctl", "--user", "disable", "--now", LEGACY_SERVICE_UNIT],
+                    check=False,
+                    timeout=5,
+                )
+            if ensure_service_installed(port):
+                subprocess.run(["systemctl", "--user", "start", SERVICE_UNIT], check=False, timeout=5)
+            elif bridge_script:
+                subprocess.Popen(
+                    [sys.executable, str(bridge_script), "--host", "0.0.0.0", "--port", str(port)],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    start_new_session=True,
+                )
+        elif bridge_script:
             subprocess.Popen(
                 [sys.executable, str(bridge_script), "--host", "0.0.0.0", "--port", str(port)],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 start_new_session=True,
             )
-    else:
-        if service_installed() and shutil.which("systemctl"):
-            subprocess.run(["systemctl", "--user", "stop", SERVICE_UNIT], check=False, timeout=5)
-        if shutil.which("pkill"):
-            subprocess.run(["pkill", "-f", "omarchy_wizard_bridge.py"], check=False, timeout=3)
+
+        # Wait briefly so the returned snapshot already includes active status + QR code
+        for _ in range(10):
+            snap = get_status(port)
+            if snap.get("active"):
+                return snap
+            time.sleep(0.3)
+        return get_status(port)
+
+    if shutil.which("systemctl"):
+        for unit in (SERVICE_UNIT, LEGACY_SERVICE_UNIT):
+            if service_unit_path(unit).exists():
+                subprocess.run(["systemctl", "--user", "stop", unit], check=False, timeout=5)
+    if shutil.which("pkill"):
+        subprocess.run(["pkill", "-f", "omarchy_wizard_bridge.py"], check=False, timeout=3)
 
     return get_status(port)
 

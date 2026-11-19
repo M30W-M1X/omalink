@@ -1,4 +1,4 @@
-name: Build & Test Omarchy Wizard
+name: Build & Test OmaLink
 
 on:
   push:
@@ -72,7 +72,7 @@ jobs:
       - name: Upload release APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: omarchy-wizard-release-apk
+          name: omalink-release-apk
           path: android_app/build/app/outputs/flutter-apk/app-release.apk
           retention-days: 30
 

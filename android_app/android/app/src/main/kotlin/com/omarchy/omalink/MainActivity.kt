@@ -1,4 +1,4 @@
-package com.omarchy.wizard
+package com.omarchy.omalink
 
 import android.content.ComponentName
 import android.content.ContentValues
@@ -33,15 +33,15 @@ import java.util.concurrent.Executors
 
 class MainActivity : FlutterActivity() {
     companion object {
-        private const val METHOD_CHANNEL = "com.omarchy.wizard/continuity"
-        private const val EVENT_CHANNEL = "com.omarchy.wizard/continuity_events"
+        private const val METHOD_CHANNEL = "com.omarchy.omalink/continuity"
+        private const val EVENT_CHANNEL = "com.omarchy.omalink/continuity_events"
         private const val MAX_SHARE_BYTES = 25 * 1024 * 1024
         private val LAUNCHER_ALIASES = linkedMapOf(
-            "classic" to "com.omarchy.wizard.LauncherDefault",
-            "anime_girl" to "com.omarchy.wizard.LauncherAnimeGirl",
-            "arcane_cat" to "com.omarchy.wizard.LauncherArcaneCat",
-            "cyber_mage" to "com.omarchy.wizard.LauncherCyberMage",
-            "astral_spirit" to "com.omarchy.wizard.LauncherAstralSpirit",
+            "classic" to "com.omarchy.omalink.LauncherDefault",
+            "anime_girl" to "com.omarchy.omalink.LauncherAnimeGirl",
+            "arcane_cat" to "com.omarchy.omalink.LauncherArcaneCat",
+            "cyber_mage" to "com.omarchy.omalink.LauncherCyberMage",
+            "astral_spirit" to "com.omarchy.omalink.LauncherAstralSpirit",
         )
     }
 
@@ -269,7 +269,7 @@ class MainActivity : FlutterActivity() {
         }
 
         try {
-            nsd.discoverServices("_omarchy-wizard._tcp.", NsdManager.PROTOCOL_DNS_SD, listener)
+            nsd.discoverServices("_omalink._tcp.", NsdManager.PROTOCOL_DNS_SD, listener)
             mainHandler.postDelayed({
                 try {
                     nsd.stopServiceDiscovery(listener)
@@ -326,10 +326,10 @@ class MainActivity : FlutterActivity() {
     private fun handleIncomingIntent(intent: Intent?, emitLive: Boolean) {
         if (intent == null) return
 
-        // 1. Pairing QR Deep Link: omarchy-wizard://pair?host=...&port=...&token=...
+        // 1. Pairing QR Deep Link: omalink://pair?host=...&port=...&token=...
         if (intent.action == Intent.ACTION_VIEW) {
             val data = intent.data
-            if (data != null && data.scheme == "omarchy-wizard") {
+            if (data != null && (data.scheme == "omalink" || data.scheme == "omarchy-wizard")) {
                 val uriStr = data.toString()
                 if (emitLive && eventSink != null) {
                     mainHandler.post {

@@ -1,4 +1,4 @@
-package com.omarchy.wizard
+package com.omarchy.omalink
 
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
@@ -10,10 +10,10 @@ import java.util.concurrent.Executors
 
 class WizardAppWidgetProvider : AppWidgetProvider() {
     companion object {
-        private const val ACTION_PLAY = "com.omarchy.wizard.WIDGET_PLAY"
-        private const val ACTION_MUTE = "com.omarchy.wizard.WIDGET_MUTE"
-        private const val ACTION_LOCK = "com.omarchy.wizard.WIDGET_LOCK"
-        private const val ACTION_SUDO = "com.omarchy.wizard.WIDGET_SUDO"
+        private const val ACTION_PLAY = "com.omarchy.omalink.WIDGET_PLAY"
+        private const val ACTION_MUTE = "com.omarchy.omalink.WIDGET_MUTE"
+        private const val ACTION_LOCK = "com.omarchy.omalink.WIDGET_LOCK"
+        private const val ACTION_SUDO = "com.omarchy.omalink.WIDGET_SUDO"
         private val executor = Executors.newSingleThreadExecutor()
 
         private fun makePending(context: Context, action: String, reqCode: Int): PendingIntent {

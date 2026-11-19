@@ -6,7 +6,7 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application
-        android:label="Omarchy Wizard"
+        android:label="OmaLink"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true">
@@ -22,10 +22,11 @@
             <meta-data
                 android:name="io.flutter.embedding.android.NormalTheme"
                 android:resource="@style/NormalTheme" />
-            <intent-filter android:label="Pair with Omarchy">
+            <intent-filter android:label="Pair with OmaLink">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="omalink" android:host="pair" />
                 <data android:scheme="omarchy-wizard" android:host="pair" />
             </intent-filter>
             <intent-filter android:label="Continue on Omarchy">
@@ -55,7 +56,7 @@
             android:enabled="true"
             android:exported="true"
             android:icon="@mipmap/ic_launcher"
-            android:label="Omarchy Wizard"
+            android:label="OmaLink"
             android:targetActivity=".MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -68,7 +69,7 @@
             android:enabled="false"
             android:exported="true"
             android:icon="@mipmap/ic_launcher_anime_girl"
-            android:label="Omarchy Wizard"
+            android:label="OmaLink"
             android:targetActivity=".MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -81,7 +82,7 @@
             android:enabled="false"
             android:exported="true"
             android:icon="@mipmap/ic_launcher_arcane_cat"
-            android:label="Omarchy Wizard"
+            android:label="OmaLink"
             android:targetActivity=".MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -94,7 +95,7 @@
             android:enabled="false"
             android:exported="true"
             android:icon="@mipmap/ic_launcher_cyber_mage"
-            android:label="Omarchy Wizard"
+            android:label="OmaLink"
             android:targetActivity=".MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -107,7 +108,7 @@
             android:enabled="false"
             android:exported="true"
             android:icon="@mipmap/ic_launcher_astral_spirit"
-            android:label="Omarchy Wizard"
+            android:label="OmaLink"
             android:targetActivity=".MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -117,7 +118,7 @@
 
         <service
             android:name=".WizardNotificationListenerService"
-            android:label="Omarchy Wizard Notification Relay"
+            android:label="OmaLink Notification Relay"
             android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
             android:exported="true">
             <intent-filter>
@@ -138,7 +139,7 @@
 
         <receiver
             android:name=".WizardAppWidgetProvider"
-            android:label="Omarchy Quick Controls"
+            android:label="OmaLink Quick Controls"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />

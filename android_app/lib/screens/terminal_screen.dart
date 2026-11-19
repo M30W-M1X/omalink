@@ -145,7 +145,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
     _demoLineBuffer.clear();
     _terminal.write('\x1b[2J\x1b[H');
     _terminal.write(
-      '\x1b[35m✨ Omarchy Wizard Remote Terminal (Demo Familiar Mode)\x1b[0m\r\n'
+      '\x1b[35m✨ OmaLink Remote Terminal (Demo Familiar Mode)\x1b[0m\r\n'
       '\x1b[90mPair with your live bridge in Sanctum for a real Omarchy login shell.\x1b[0m\r\n'
       '\x1b[90mTry: help, ls, uname -a, pwd, clear\x1b[0m\r\n\r\n',
     );

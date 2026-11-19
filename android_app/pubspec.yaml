@@ -1,7 +1,7 @@
-name: omarchy_wizard
-description: Cute animated Wizard Android controller for AI Agents running on Omarchy.
+name: omalink
+description: OmaLink — Android Continuity, Remote Desktop, OS Control & AI Agent companion for Omarchy Linux.
 publish_to: 'none'
-version: 2.3.0+12
+version: 3.0.0+13
 
 environment:
   sdk: '>=3.4.0 <4.0.0'

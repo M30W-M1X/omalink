@@ -1,18 +1,23 @@
 #!/usr/bin/env bash
-# Omarchy Wizard installer for humans and AI coding agents running inside Omarchy Linux.
-# Supports local repo installs and curl-piped installs:
-#   curl -fsSL https://raw.githubusercontent.com/M30W-M1X/omarchy-wizard/master/install.sh | bash
+# OmaLink installer for humans and AI coding agents running inside Omarchy Linux.
+# Supports Omarchy Plugin Marketplace installs, local repo installs, and curl-piped installs:
+#   omarchy plugin add https://github.com/M30W-M1X/omalink.git --enable
+#   curl -fsSL https://raw.githubusercontent.com/M30W-M1X/omalink/master/install.sh | bash
 #   ./install.sh --json
 #   ./install.sh --check --json
 set -euo pipefail
 
-REPO_URL="${OMARCHY_WIZARD_REPO:-https://github.com/M30W-M1X/omarchy-wizard.git}"
-RELEASES_URL="https://github.com/M30W-M1X/omarchy-wizard/releases/latest"
-SERVICE_NAME="omarchy-wizard-bridge.service"
+REPO_URL="${OMALINK_REPO:-https://github.com/M30W-M1X/omalink.git}"
+RELEASES_URL="https://github.com/M30W-M1X/omalink/releases/latest"
+SERVICE_NAME="omalink-bridge.service"
+LEGACY_SERVICE_NAME="omarchy-wizard-bridge.service"
 SERVICE_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 SERVICE_FILE="$SERVICE_DIR/$SERVICE_NAME"
-PLUGIN_DEST="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/plugins/wizard-panel"
-TOKEN_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy-wizard/token"
+PLUGIN_ID="omalink.panel"
+LEGACY_PLUGIN_ID="wizard.panel"
+PLUGIN_DEST="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/plugins/omalink.panel"
+LEGACY_PLUGIN_DEST="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/plugins/wizard-panel"
+TOKEN_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/omalink/token"
 
 INSTALL_DIR=""
 PORT=7842
@@ -29,20 +34,20 @@ usage() {
   cat <<'EOF'
 Usage: install.sh [OPTIONS]
 
-Install, verify, or uninstall the Omarchy Wizard Bridge service and Omarchy top-bar plugin.
+Install, verify, or uninstall the OmaLink companion bridge service and Omarchy top-bar plugin.
 
 Options:
   --dir PATH           Repository/install directory (auto-detected if run from repo;
-                       otherwise defaults to ~/.local/share/omarchy-wizard)
+                       otherwise defaults to ~/.local/share/omalink)
   --port PORT          Bridge listen port (default: 7842)
   --tls                Enable self-signed TLS encryption on the bridge service
-  --no-plugin          Skip installing/enabling the Omarchy top-bar wizard.panel plugin
+  --no-plugin          Skip installing/enabling the Omarchy top-bar omalink.panel plugin
   --no-restart-shell   Skip restarting omarchy-shell after installing the plugin
   --check              Read-only health & dependency check (no changes made)
   --show-pairing       Print pairing deep link and ASCII QR code (contains secret token!)
   --json               Output machine-readable JSON summary (ideal for AI agents)
   --uninstall          Stop/disable the systemd service and remove the top-bar plugin
-  --purge              With --uninstall, also remove ~/.config/omarchy-wizard (token/certs)
+  --purge              With --uninstall, also remove ~/.config/omalink (token/certs)
   -h, --help           Show this help message
 EOF
 }
@@ -118,7 +123,6 @@ die() {
   exit 1
 }
 
-# Detect script directory safely even when piped from curl | bash
 SCRIPT_DIR=""
 if [[ -n "${BASH_SOURCE[0]:-}" && -f "${BASH_SOURCE[0]}" ]]; then
   SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -129,10 +133,12 @@ if [[ -z "$INSTALL_DIR" ]]; then
     INSTALL_DIR="$SCRIPT_DIR"
   elif [[ -f "$PWD/bridge/omarchy_wizard_bridge.py" ]]; then
     INSTALL_DIR="$PWD"
+  elif [[ -f "$HOME/Projects/omalink/bridge/omarchy_wizard_bridge.py" ]]; then
+    INSTALL_DIR="$HOME/Projects/omalink"
   elif [[ -f "$HOME/Projects/omarchy_wizard/bridge/omarchy_wizard_bridge.py" ]]; then
     INSTALL_DIR="$HOME/Projects/omarchy_wizard"
   else
-    INSTALL_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/omarchy-wizard"
+    INSTALL_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/omalink"
   fi
 fi
 
@@ -178,20 +184,22 @@ collect_optional_tools() {
 
 # Handle uninstall
 if [[ "$UNINSTALL" -eq 1 ]]; then
-  log "Uninstalling Omarchy Wizard..."
+  log "Uninstalling OmaLink..."
   if command -v systemctl >/dev/null 2>&1; then
     systemctl --user disable --now "$SERVICE_NAME" 2>/dev/null || true
+    systemctl --user disable --now "$LEGACY_SERVICE_NAME" 2>/dev/null || true
   fi
-  rm -f "$SERVICE_FILE"
+  rm -f "$SERVICE_FILE" "$SERVICE_DIR/$LEGACY_SERVICE_NAME"
   if command -v systemctl >/dev/null 2>&1; then
     systemctl --user daemon-reload 2>/dev/null || true
   fi
   if command -v omarchy >/dev/null 2>&1; then
-    omarchy plugin disable wizard.panel 2>/dev/null || true
+    omarchy plugin disable "$PLUGIN_ID" 2>/dev/null || true
+    omarchy plugin disable "$LEGACY_PLUGIN_ID" 2>/dev/null || true
   fi
-  rm -rf "$PLUGIN_DEST"
+  rm -rf "$PLUGIN_DEST" "$LEGACY_PLUGIN_DEST"
   if [[ "$PURGE" -eq 1 ]]; then
-    rm -rf "${XDG_CONFIG_HOME:-$HOME/.config}/omarchy-wizard"
+    rm -rf "${XDG_CONFIG_HOME:-$HOME/.config}/omalink"
   fi
   if [[ "$RESTART_SHELL" -eq 1 && -x "$(command -v omarchy-restart-shell 2>/dev/null || true)" ]]; then
     omarchy-restart-shell >/dev/null 2>&1 || true
@@ -208,7 +216,7 @@ print(json.dumps({
 }, indent=2))
 PY
   else
-    log "Omarchy Wizard uninstalled."
+    log "OmaLink uninstalled."
     if [[ "$PURGE" -eq 0 ]]; then
       log "Note: Pairing token preserved at $TOKEN_FILE (pass --purge to remove)."
     fi
@@ -246,6 +254,7 @@ import json
 print(json.dumps({
     "ok": bool($PING_OK),
     "action": "check",
+    "app": "OmaLink",
     "install_dir": "$INSTALL_DIR",
     "service_name": "$SERVICE_NAME",
     "service_state": "$SERVICE_STATE",
@@ -256,6 +265,7 @@ print(json.dumps({
     "tailscale_ip": "$TS_IP" or None,
     "token_file": "$TOKEN_FILE",
     "token_exists": bool($TOKEN_EXISTS),
+    "plugin_id": "$PLUGIN_ID",
     "plugin_installed": bool($PLUGIN_INSTALLED),
     "plugin_dir": "$PLUGIN_DEST",
     "present_optional_tools": "${PRESENT_TOOLS[*]:-}".split(),
@@ -264,7 +274,7 @@ print(json.dumps({
 }, indent=2))
 PY
   else
-    log "Omarchy Wizard Health Check"
+    log "OmaLink Health Check"
     log "  Install dir:    $INSTALL_DIR"
     log "  Service state:  $SERVICE_STATE ($SERVICE_NAME)"
     log "  Bridge ping:    $([[ "$PING_OK" -eq 1 ]] && echo OK || echo FAILED) (port $PORT)"
@@ -282,19 +292,26 @@ fi
 # 1. Clone or verify repository
 if [[ ! -f "$INSTALL_DIR/bridge/omarchy_wizard_bridge.py" ]]; then
   command -v git >/dev/null 2>&1 || die "git is required to clone $REPO_URL into $INSTALL_DIR"
-  log "Cloning Omarchy Wizard into $INSTALL_DIR..."
+  log "Cloning OmaLink into $INSTALL_DIR..."
   mkdir -p "$(dirname "$INSTALL_DIR")"
   git clone --depth 1 "$REPO_URL" "$INSTALL_DIR"
 else
-  log "Using Omarchy Wizard repository at $INSTALL_DIR"
+  log "Using OmaLink repository at $INSTALL_DIR"
 fi
 
 BRIDGE_SCRIPT="$INSTALL_DIR/bridge/omarchy_wizard_bridge.py"
 [[ -f "$BRIDGE_SCRIPT" ]] || die "Bridge script not found at $BRIDGE_SCRIPT"
 
-# 2. Install & start systemd user service
+# 2. Migrate legacy systemd unit cleanly & start omalink-bridge.service
 log "Configuring systemd user service ($SERVICE_FILE)..."
 mkdir -p "$SERVICE_DIR"
+command -v systemctl >/dev/null 2>&1 || die "systemctl is required to manage the bridge service."
+
+if [[ -f "$SERVICE_DIR/$LEGACY_SERVICE_NAME" ]]; then
+  systemctl --user disable --now "$LEGACY_SERVICE_NAME" >/dev/null 2>&1 || true
+  rm -f "$SERVICE_DIR/$LEGACY_SERVICE_NAME"
+fi
+
 TLS_FLAG=""
 if [[ "$USE_TLS" -eq 1 ]]; then
   TLS_FLAG=" --tls"
@@ -302,7 +319,7 @@ fi
 
 cat > "$SERVICE_FILE" <<EOF
 [Unit]
-Description=Omarchy Wizard Agent Bridge (Remote AI Agent & Companion Controller)
+Description=OmaLink Companion Bridge (Android Continuity, Remote Desktop & AI Agents)
 After=network-online.target
 
 [Service]
@@ -316,12 +333,10 @@ RestartSec=3
 WantedBy=default.target
 EOF
 
-command -v systemctl >/dev/null 2>&1 || die "systemctl is required to manage the bridge service."
 systemctl --user daemon-reload
-systemctl --user enable "$SERVICE_NAME" >/dev/null
+systemctl --user enable "$SERVICE_NAME" >/dev/null 2>&1
 systemctl --user restart "$SERVICE_NAME"
 
-# Wait up to 8 seconds for bridge /api/ping
 PING_OK=0
 for _ in $(seq 1 16); do
   if check_ping; then
@@ -339,10 +354,15 @@ if [[ -f "$TOKEN_FILE" ]]; then
   chmod 600 "$TOKEN_FILE" || true
 fi
 
-# 3. Install Omarchy top-bar plugin (wizard.panel)
+# 3. Install Omarchy top-bar plugin (omalink.panel) & retire legacy wizard.panel
 PLUGIN_STATUS="skipped"
 if [[ "$INSTALL_PLUGIN" -eq 1 && -d "$INSTALL_DIR/omarchy-plugin" ]]; then
-  log "Installing Omarchy top-bar plugin to $PLUGIN_DEST..."
+  log "Installing OmaLink top-bar plugin to $PLUGIN_DEST..."
+  if command -v omarchy >/dev/null 2>&1; then
+    omarchy plugin disable "$LEGACY_PLUGIN_ID" >/dev/null 2>&1 || true
+  fi
+  rm -rf "$LEGACY_PLUGIN_DEST"
+
   mkdir -p "$(dirname "$PLUGIN_DEST")"
   rm -rf "$PLUGIN_DEST"
   cp -r "$INSTALL_DIR/omarchy-plugin" "$PLUGIN_DEST"
@@ -350,8 +370,8 @@ if [[ "$INSTALL_PLUGIN" -eq 1 && -d "$INSTALL_DIR/omarchy-plugin" ]]; then
 
   if command -v omarchy >/dev/null 2>&1; then
     if omarchy plugin validate "$PLUGIN_DEST" >/dev/null 2>&1; then
-      omarchy plugin enable wizard.panel --before omarchy.agents >/dev/null 2>&1 \
-        || omarchy plugin enable wizard.panel >/dev/null 2>&1 \
+      omarchy plugin enable "$PLUGIN_ID" --before omarchy.agents >/dev/null 2>&1 \
+        || omarchy plugin enable "$PLUGIN_ID" >/dev/null 2>&1 \
         || true
       PLUGIN_STATUS="enabled"
     else
@@ -364,7 +384,7 @@ if [[ "$INSTALL_PLUGIN" -eq 1 && -d "$INSTALL_DIR/omarchy-plugin" ]]; then
 
   if [[ "$RESTART_SHELL" -eq 1 ]]; then
     if command -v omarchy-restart-shell >/dev/null 2>&1; then
-      log "Restarting Omarchy shell so the top-bar Wizard badge appears..."
+      log "Restarting Omarchy shell so the top-bar OmaLink badge appears..."
       omarchy-restart-shell >/dev/null 2>&1 || true
     elif command -v omarchy >/dev/null 2>&1; then
       omarchy restart shell >/dev/null 2>&1 || true
@@ -372,7 +392,7 @@ if [[ "$INSTALL_PLUGIN" -eq 1 && -d "$INSTALL_DIR/omarchy-plugin" ]]; then
   fi
 fi
 
-# 4. Collect diagnostics (optional tools + LAN/Tailscale IP)
+# 4. Collect diagnostics
 LAN_IP="$(detect_lan_ip)"
 TS_IP="$(detect_tailscale_ip)"
 SCHEME="http"
@@ -380,13 +400,13 @@ SCHEME="http"
 SERVICE_STATE="$(systemctl --user is-active "$SERVICE_NAME" 2>/dev/null || echo unknown)"
 collect_optional_tools
 
-# Output summary
 if [[ "$JSON_OUT" -eq 1 ]]; then
   python3 - <<PY
 import json
 payload = {
     "ok": bool($PING_OK),
     "action": "install",
+    "app": "OmaLink",
     "install_dir": "$INSTALL_DIR",
     "service_name": "$SERVICE_NAME",
     "service_file": "$SERVICE_FILE",
@@ -398,6 +418,7 @@ payload = {
     "lan_ip": "$LAN_IP",
     "tailscale_ip": "$TS_IP" or None,
     "token_file": "$TOKEN_FILE",
+    "plugin_id": "$PLUGIN_ID",
     "plugin_status": "$PLUGIN_STATUS",
     "plugin_dir": "$PLUGIN_DEST",
     "present_optional_tools": "${PRESENT_TOOLS[*]:-}".split(),
@@ -412,22 +433,22 @@ PY
 fi
 
 log ""
-log "Omarchy Wizard installation complete!"
+log "OmaLink installation complete!"
 log "  Bridge URL:     ${SCHEME}://${LAN_IP}:${PORT}"
 if [[ -n "$TS_IP" ]]; then
   log "  Tailscale URL:  ${SCHEME}://${TS_IP}:${PORT}"
 fi
 log "  Service state:  ${SERVICE_STATE} (${SERVICE_NAME})"
 log "  Bridge health:  $([[ "$PING_OK" -eq 1 ]] && echo 'OK (/api/ping)' || echo 'FAILED')"
-log "  Top-bar badge:  ${PLUGIN_STATUS} (${PLUGIN_DEST})"
+log "  Top-bar badge:  ${PLUGIN_STATUS} (${PLUGIN_ID} -> ${PLUGIN_DEST})"
 log "  Token path:     ${TOKEN_FILE}"
 log "  Android APK:    ${RELEASES_URL}"
 log ""
 log "Next steps:"
 log "  1. Download and install the latest app-release.apk on Android from:"
 log "     ${RELEASES_URL}"
-log "  2. Click the Wizard hat badge in your Omarchy top bar to view the live pairing QR code."
-log "  3. In the Android app, open Sanctum -> Scan QR Code (or Auto-Discover LAN)."
+log "  2. Click the OmaLink icon in your Omarchy top bar to scan the live pairing QR code."
+log "  3. Or open OmaLink on Android -> Sanctum -> Scan LAN (mDNS) / Paste Pair URI."
 log "  4. If UFW firewall blocks LAN traffic, run: sudo ufw allow ${PORT}/tcp"
 
 if [[ "${#MISSING_TOOLS[@]}" -gt 0 ]]; then
@@ -441,7 +462,7 @@ fi
 if [[ "$SHOW_PAIRING" -eq 1 && -f "$TOKEN_FILE" ]]; then
   TOKEN="$(tr -d '[:space:]' < "$TOKEN_FILE")"
   HOST_NAME="$(hostname)"
-  PAIR_URI="omarchy-wizard://pair?host=${LAN_IP}&port=${PORT}&token=${TOKEN}&name=${HOST_NAME}&tls=${USE_TLS}"
+  PAIR_URI="omalink://pair?host=${LAN_IP}&port=${PORT}&token=${TOKEN}&name=${HOST_NAME}&tls=${USE_TLS}"
   log ""
   log "Pairing URI (keep private):"
   log "  ${PAIR_URI}"

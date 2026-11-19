@@ -1,4 +1,4 @@
-package com.omarchy.wizard
+package com.omarchy.omalink
 
 import android.app.Notification
 import android.app.PendingIntent

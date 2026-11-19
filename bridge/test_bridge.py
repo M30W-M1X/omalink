@@ -209,7 +209,7 @@ class BridgeTests(unittest.TestCase):
                 created = load_or_create_token()
                 self.assertEqual(len(created), 5)
                 self.assertTrue(created.isdigit())
-                token_path = Path(tmpdir) / "omarchy-wizard" / "token"
+                token_path = Path(tmpdir) / "omalink" / "token"
                 self.assertEqual(token_path.read_text(encoding="utf-8").strip(), created)
                 self.assertEqual(load_or_create_token(), created)
 
@@ -730,7 +730,7 @@ class BridgeTests(unittest.TestCase):
                     "v2-tok",
                 )
                 self.assertEqual(code, 200)
-                self.assertTrue(pair["pair_uri"].startswith("omarchy-wizard://pair?"))
+                self.assertTrue(pair["pair_uri"].startswith("omalink://pair?"))
                 self.assertIn("token=v2-tok", pair["pair_uri"])
 
                 # 4. Agent usage endpoint

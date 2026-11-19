@@ -61,7 +61,7 @@ class _OmarchyWizardAppState extends State<OmarchyWizardApp>
         final palette = widget.client.activePalette;
         WizardColors.apply(palette);
         return MaterialApp(
-          title: 'Omarchy Wizard',
+          title: 'OmaLink',
           debugShowCheckedModeBanner: false,
           theme: WizardTheme.fromPalette(palette),
           home: Scaffold(

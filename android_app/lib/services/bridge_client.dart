@@ -1279,7 +1279,7 @@ class BridgeClient extends ChangeNotifier {
       if (_desktopClipboardHistory.isEmpty) {
         _desktopClipboardHistory = const [
           'https://wiki.archlinux.org/title/Hyprland',
-          'systemctl --user status omarchy-wizard-bridge',
+          'systemctl --user status omalink-bridge',
           'omarchy-theme-set nord',
         ];
       }
@@ -1346,7 +1346,9 @@ class BridgeClient extends ChangeNotifier {
 
   Future<bool> applyPairingUri(String rawUri) async {
     final parsed = Uri.tryParse(rawUri.trim());
-    if (parsed == null || parsed.scheme != 'omarchy-wizard') return false;
+    if (parsed == null || (parsed.scheme != 'omalink' && parsed.scheme != 'omarchy-wizard')) {
+      return false;
+    }
     final host = parsed.queryParameters['host']?.trim() ?? '';
     final port = int.tryParse(parsed.queryParameters['port'] ?? '') ?? 7842;
     final token = parsed.queryParameters['token']?.trim() ?? '';

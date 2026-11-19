@@ -51,7 +51,7 @@ def utc_now_iso() -> str:
 def get_config_dir() -> Path:
     xdg = os.environ.get("XDG_CONFIG_HOME")
     base = Path(xdg) if xdg else Path.home() / ".config"
-    return base / "omarchy-wizard"
+    return base / "omalink"
 
 
 def generate_pairing_token(digits: int = 5) -> str:
@@ -62,7 +62,10 @@ def generate_pairing_token(digits: int = 5) -> str:
 def load_or_create_token(explicit_token: str | None = None) -> str:
     if explicit_token:
         return explicit_token.strip()
-    env_token = os.environ.get("OMARCHY_WIZARD_TOKEN", "").strip()
+    env_token = (
+        os.environ.get("OMALINK_TOKEN", "").strip()
+        or os.environ.get("OMARCHY_WIZARD_TOKEN", "").strip()
+    )
     if env_token:
         return env_token
     cfg_dir = get_config_dir()
@@ -71,6 +74,18 @@ def load_or_create_token(explicit_token: str | None = None) -> str:
         saved = token_file.read_text(encoding="utf-8").strip()
         if saved:
             return saved
+    # Seamless migration from legacy ~/.config/omarchy-wizard/token
+    legacy_token_file = cfg_dir.parent / "omarchy-wizard" / "token"
+    if legacy_token_file.exists():
+        legacy = legacy_token_file.read_text(encoding="utf-8").strip()
+        if legacy:
+            cfg_dir.mkdir(parents=True, exist_ok=True)
+            token_file.write_text(legacy + "\n", encoding="utf-8")
+            try:
+                os.chmod(token_file, 0o600)
+            except OSError:
+                pass
+            return legacy
     cfg_dir.mkdir(parents=True, exist_ok=True)
     token = generate_pairing_token()
     token_file.write_text(token + "\n", encoding="utf-8")
@@ -454,7 +469,7 @@ class OmarchyWizardBridge:
             params.append(f"fp={quote(self.tls_fingerprint)}")
         if ts_ip:
             params.append(f"ts={quote(ts_ip)}")
-        return f"omarchy-wizard://pair?{'&'.join(params)}"
+        return f"omalink://pair?{'&'.join(params)}"
 
     def status_payload(self) -> dict[str, Any]:
         info = read_omarchy_info()
@@ -693,12 +708,12 @@ class OmarchyWizardBridge:
         try:
             lan_ip = detect_lan_ips()[0]
             ts_ip = omarchy_control.detect_tailscale_ip()
-            svc_name = f"Omarchy Wizard ({socket.gethostname()})"
+            svc_name = f"OmaLink ({socket.gethostname()})"
             cmd = [
                 "avahi-publish",
                 "-s",
                 svc_name,
-                "_omarchy-wizard._tcp",
+                "_omalink._tcp",
                 str(self.bound_port),
                 f"host={lan_ip}",
                 f"tls={'1' if self.use_tls else '0'}",
@@ -836,7 +851,7 @@ class OmarchyWizardBridge:
 
         if path == "/api/ping" and method == "GET":
             await self._send_http_json(
-                writer, HTTPStatus.OK, {"ok": True, "app": "omarchy-wizard-bridge"}
+                writer, HTTPStatus.OK, {"ok": True, "app": "omalink-bridge"}
             )
             return
 
@@ -1374,7 +1389,7 @@ async def run_server(host: str, port: int, token: str | None, use_tls: bool = Fa
     await bridge.start()
     ips = detect_lan_ips()
     scheme = "https" if bridge.use_tls else "http"
-    print("✨ Omarchy Wizard Bridge v2.0 is listening!")
+    print("✨ OmaLink Bridge v3.0 is listening!")
     print(f"   Host/Port : {host}:{bridge.bound_port}")
     for ip in ips:
         print(f"   Pair URL  : {scheme}://{ip}:{bridge.bound_port}")
@@ -1393,7 +1408,7 @@ async def run_server(host: str, port: int, token: str | None, use_tls: bool = Fa
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Omarchy Wizard Agent Bridge")
+    parser = argparse.ArgumentParser(description="OmaLink Companion & AI Agent Bridge")
     parser.add_argument("--host", default="0.0.0.0", help="Bind address (default: 0.0.0.0)")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT, help=f"Port (default: {DEFAULT_PORT})")
     parser.add_argument("--token", default=None, help="Explicit bearer token")
