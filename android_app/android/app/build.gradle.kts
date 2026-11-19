@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "com.omarchy.omalink"
+    namespace = "io.github.m30w_m1x.omalink"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -15,7 +15,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.omarchy.omalink"
+        applicationId = "io.github.m30w_m1x.omalink"
         minSdk = 24
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode

@@ -2052,6 +2052,37 @@ class BridgeClient extends ChangeNotifier {
     }
   }
 
+  Future<String?> closeSession(AgentSession session) async {
+    if (_settings.demoMode) {
+      _sessions = _sessions.where((s) => s.id != session.id).toList();
+      _demoTranscripts.remove(session.id);
+      notifyListeners();
+      return null;
+    }
+
+    try {
+      final resp = await http
+          .post(
+            Uri.parse(
+              '${_settings.httpBaseUrl}/api/sessions/${Uri.encodeComponent(session.agent)}/${Uri.encodeComponent(session.id)}/close',
+            ),
+            headers: _headers,
+            body: jsonEncode({'step_count': session.stepCount}),
+          )
+          .timeout(const Duration(seconds: 8));
+      final decoded = jsonDecode(resp.body) as Map<String, dynamic>;
+      if (resp.statusCode >= 200 && resp.statusCode < 300 && decoded['ok'] == true) {
+        _sessions = _sessions.where((s) => s.id != session.id).toList();
+        notifyListeners();
+        unawaited(refreshSessions());
+        return null;
+      }
+      return decoded['error']?.toString() ?? 'Failed to close session (${resp.statusCode})';
+    } catch (e) {
+      return 'Failed to reach bridge: $e';
+    }
+  }
+
   @override
   void dispose() {
     if (_disposed) return;

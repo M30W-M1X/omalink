@@ -36,6 +36,54 @@ class _SessionsScreenState extends State<SessionsScreen> {
     );
   }
 
+  Future<void> _confirmAndClose(AgentSession session) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: WizardColors.surfaceCard,
+        title: Text(
+          session.isOpen ? 'Close Live Session?' : 'Dismiss Session?',
+          style: TextStyle(color: WizardColors.textPrimary),
+        ),
+        content: Text(
+          session.isOpen
+              ? 'This will close the running "${session.title}" agent process/window on Omarchy and remove it from OmaLink.'
+              : 'Remove "${session.title}" from your OmaLink sessions list? It will reappear automatically if new activity occurs.',
+          style: TextStyle(color: WizardColors.textMuted),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: WizardColors.coralError,
+              foregroundColor: WizardColors.obsidian,
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(session.isOpen ? 'Close Session' : 'Dismiss'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final err = await widget.client.closeSession(session);
+    if (!mounted) return;
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          err ??
+              (session.isOpen
+                  ? 'Closed "${session.title}" on Omarchy'
+                  : 'Dismissed "${session.title}"'),
+        ),
+        backgroundColor: err != null ? WizardColors.coralError : null,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
@@ -103,6 +151,7 @@ class _SessionsScreenState extends State<SessionsScreen> {
                       return _SessionCard(
                         session: s,
                         onTap: () => _openPeek(s),
+                        onClose: () => _confirmAndClose(s),
                       );
                     },
                   ),
@@ -117,10 +166,12 @@ class _SessionCard extends StatelessWidget {
   const _SessionCard({
     required this.session,
     required this.onTap,
+    required this.onClose,
   });
 
   final AgentSession session;
   final VoidCallback onTap;
+  final VoidCallback onClose;
 
   @override
   Widget build(BuildContext context) {
@@ -225,6 +276,18 @@ class _SessionCard extends StatelessWidget {
                     ),
                   ],
                   const Spacer(),
+                  IconButton(
+                    tooltip: session.isOpen ? 'Close Session' : 'Dismiss Session',
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                    onPressed: onClose,
+                    icon: Icon(
+                      Icons.close_rounded,
+                      size: 18,
+                      color: WizardColors.textMuted,
+                    ),
+                  ),
                   Icon(
                     Icons.chevron_right_rounded,
                     size: 18,
@@ -387,6 +450,55 @@ class _SessionPeekScreenState extends State<SessionPeekScreen> {
     }
   }
 
+  Future<void> _confirmAndCloseCurrent() async {
+    final s = _session;
+    final messenger = ScaffoldMessenger.of(context);
+    final nav = Navigator.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: WizardColors.surfaceCard,
+        title: Text(
+          s.isOpen ? 'Close Live Session?' : 'Dismiss Session?',
+          style: TextStyle(color: WizardColors.textPrimary),
+        ),
+        content: Text(
+          s.isOpen
+              ? 'This will close the running "${s.title}" agent process/window on Omarchy and remove it from OmaLink.'
+              : 'Remove "${s.title}" from your OmaLink sessions list?',
+          style: TextStyle(color: WizardColors.textMuted),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: WizardColors.coralError,
+              foregroundColor: WizardColors.obsidian,
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(s.isOpen ? 'Close Session' : 'Dismiss'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final err = await widget.client.closeSession(s);
+    if (!mounted) return;
+    if (err != null) {
+      messenger.showSnackBar(
+        SnackBar(content: Text(err), backgroundColor: WizardColors.coralError),
+      );
+    } else {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Closed "${s.title}"')),
+      );
+      nav.pop();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
@@ -413,6 +525,11 @@ class _SessionPeekScreenState extends State<SessionPeekScreen> {
               ],
             ),
             actions: [
+              IconButton(
+                tooltip: s.isOpen ? 'Close Session' : 'Dismiss Session',
+                onPressed: _confirmAndCloseCurrent,
+                icon: Icon(Icons.power_settings_new_rounded, color: WizardColors.coralError),
+              ),
               IconButton(
                 tooltip: 'Refresh Transcript',
                 onPressed: () => _loadTranscript(scrollToBottom: true),

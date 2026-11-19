@@ -836,6 +836,50 @@ class BridgeTests(unittest.TestCase):
             self.assertEqual(tr["messages"][0]["role"], "user")
             self.assertEqual(tr["messages"][1]["role"], "question")
 
+            # Closing/dismissing removes it until new steps arrive
+            closed = omarchy_sessions.close_session(
+                "agy", "sess-123", step_count=4, config_dir=root / "cfg", check_live_procs=False
+            )
+            self.assertTrue(closed["ok"])
+            after_close = omarchy_sessions.discover_sessions(
+                limit=5, agy_root=root, claude_root=root / "none", config_dir=root / "cfg"
+            )
+            self.assertEqual(after_close, [])
+
+    def test_session_send_and_close_http_endpoints(self) -> None:
+        async def run() -> None:
+            bridge = OmarchyWizardBridge(host="127.0.0.1", port=0, token="sess-tok")
+            await bridge.start()
+            try:
+                port = bridge.bound_port
+                code, res = await asyncio.to_thread(
+                    _http_json,
+                    f"http://127.0.0.1:{port}/api/sessions/mock/conv-42/send",
+                    "POST",
+                    "sess-tok",
+                    {"message": "Continue building feature X", "mode": "resume"},
+                )
+                self.assertEqual(code, 201)
+                self.assertTrue(res["ok"])
+                self.assertEqual(res["task"]["conversation_id"], "conv-42")
+                self.assertEqual(res["task"]["prompt"], "Continue building feature X")
+
+                with mock.patch("omarchy_sessions.close_session", return_value={"ok": True, "session_id": "conv-42", "message": "Closed"}):
+                    with mock.patch("omarchy_sessions.discover_sessions", return_value=[]):
+                        code2, res2 = await asyncio.to_thread(
+                            _http_json,
+                            f"http://127.0.0.1:{port}/api/sessions/mock/conv-42/close",
+                            "POST",
+                            "sess-tok",
+                            {"step_count": 4},
+                        )
+                        self.assertEqual(code2, 200)
+                        self.assertTrue(res2["ok"])
+            finally:
+                await bridge.stop()
+
+        asyncio.run(run())
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,4 +1,4 @@
-package com.omarchy.omalink
+package io.github.m30w_m1x.omalink
 
 import android.content.Context
 import android.service.quicksettings.Tile

@@ -103,7 +103,7 @@ No Python pip dependencies are required — the bridge runs on **Python 3.11+ st
 - `AGENT_INSTALL.md` — Dedicated runbook & copy-paste prompt for AI agents inside Omarchy.
 - `bridge/` — Pure Python 3.11+ HTTP + WebSocket server (`omarchy_wizard_bridge.py`), OS control (`omarchy_control.py`), Continuity (`omarchy_continuity.py`), Wayland Remote Desktop (`omarchy_desktop.py`), File Explorer (`omarchy_files.py`), PTY Terminal (`omarchy_pty.py`), and unit test suite (`test_bridge.py`).
 - `omarchy-plugin/` — Omarchy top-bar status badge (`omalink.panel`, `Panel.qml`, `WizardIcon.qml`, `status.py`) with live pairing QR code, 1-click bridge auto-setup, connected devices, and quick replies.
-- `android_app/` — Flutter Android app (`com.omarchy.omalink`) with Material 3 dynamic Omarchy theming, 5 animated avatars & switchable launcher icons, Quick Settings Tile, and Home Screen Widget.
+- `android_app/` — Flutter Android app (`io.github.m30w_m1x.omalink`) with Material 3 dynamic Omarchy theming, 5 animated avatars & switchable launcher icons, Quick Settings Tile, and Home Screen Widget.
 - `.github/workflows/build.yml` — CI workflow running Python bridge tests, `flutter analyze`, `flutter test`, and publishing `app-release.apk` on version tags (`v*`).
 
 ---

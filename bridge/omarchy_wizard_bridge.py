@@ -45,6 +45,23 @@ MAX_LOG_EVENTS = 500
 MAX_TASKS = 100
 
 
+def ensure_agent_paths() -> None:
+    """Ensure mise shims and Omarchy bin directories are on PATH for systemd launches."""
+    home = Path.home()
+    extra = [
+        str(home / ".local" / "share" / "mise" / "shims"),
+        str(home / ".local" / "share" / "mise" / "command-wrappers" / "bin"),
+        str(home / ".local" / "bin"),
+        "/usr/share/omarchy/bin",
+    ]
+    current = os.environ.get("PATH", "").split(":")
+    merged = [p for p in extra if Path(p).is_dir() and p not in current] + current
+    os.environ["PATH"] = ":".join(p for p in merged if p)
+
+
+ensure_agent_paths()
+
+
 def utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -1177,7 +1194,7 @@ class OmarchyWizardBridge:
                     await self._send_http_json(writer, status_code, res)
                     return
 
-                task = await self.create_task(
+                task = await self.start_task(
                     prompt=message,
                     agent=agent_name,
                     mode=str(payload.get("agent_mode", "auto")),
@@ -1190,6 +1207,30 @@ class OmarchyWizardBridge:
                     HTTPStatus.CREATED,
                     {"ok": True, "mode": "resume", "task": task.to_dict()},
                 )
+                return
+
+            if len(parts) == 3 and parts[2] == "close" and method == "POST":
+                agent_name, session_id = parts[0], parts[1]
+                try:
+                    payload = json.loads(body_bytes.decode("utf-8")) if body_bytes else {}
+                except json.JSONDecodeError:
+                    payload = {}
+                step_count = int(payload.get("step_count", 0) or 0)
+                # Cancel any running bridge-managed task for this conversation_id
+                for t in list(self.tasks.values()):
+                    if t.conversation_id == session_id and t.status == "running":
+                        await self.cancel_task(t.id)
+                res = await asyncio.to_thread(
+                    omarchy_sessions.close_session,
+                    agent_name,
+                    session_id,
+                    step_count,
+                )
+                if res.get("ok"):
+                    sessions = await asyncio.to_thread(omarchy_sessions.discover_sessions, 20)
+                    await self.broadcast("sessions.updated", {"sessions": sessions})
+                status_code = HTTPStatus.OK if res.get("ok") else HTTPStatus.BAD_REQUEST
+                await self._send_http_json(writer, status_code, res)
                 return
 
         if method == "GET" and path == "/api/pairing/info":

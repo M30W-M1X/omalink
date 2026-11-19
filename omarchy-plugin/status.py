@@ -93,7 +93,7 @@ def ensure_service_installed(port: int) -> bool:
         "After=network-online.target\n\n"
         "[Service]\n"
         "Type=simple\n"
-        'Environment="PATH=/usr/share/omarchy/bin:/usr/local/bin:/usr/bin:/bin:%h/.local/bin"\n'
+        'Environment="PATH=%h/.local/share/mise/shims:%h/.local/share/mise/command-wrappers/bin:/usr/share/omarchy/bin:/usr/local/bin:/usr/bin:/bin:%h/.local/bin"\n'
         f"ExecStart=/usr/bin/python3 {bridge_script} --host 0.0.0.0 --port {port}\n"
         "Restart=on-failure\n"
         "RestartSec=3\n\n"

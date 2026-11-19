@@ -38,9 +38,14 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     expect(client.sessions.first.state, 'running');
-    await tester.tap(find.byTooltip('Back').last);
+    // Close the session directly from the Peek screen AppBar
+    await tester.tap(find.byTooltip('Close Session'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.text('Close Session'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
+    expect(client.sessions.length, 1);
     await tester.tap(find.byTooltip('Back').last);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));

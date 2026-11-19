@@ -1,4 +1,4 @@
-package com.omarchy.omalink
+package io.github.m30w_m1x.omalink
 
 import android.content.ComponentName
 import android.content.ContentValues
@@ -33,15 +33,15 @@ import java.util.concurrent.Executors
 
 class MainActivity : FlutterActivity() {
     companion object {
-        private const val METHOD_CHANNEL = "com.omarchy.omalink/continuity"
-        private const val EVENT_CHANNEL = "com.omarchy.omalink/continuity_events"
+        private const val METHOD_CHANNEL = "io.github.m30w_m1x.omalink/continuity"
+        private const val EVENT_CHANNEL = "io.github.m30w_m1x.omalink/continuity_events"
         private const val MAX_SHARE_BYTES = 25 * 1024 * 1024
         private val LAUNCHER_ALIASES = linkedMapOf(
-            "classic" to "com.omarchy.omalink.LauncherDefault",
-            "anime_girl" to "com.omarchy.omalink.LauncherAnimeGirl",
-            "arcane_cat" to "com.omarchy.omalink.LauncherArcaneCat",
-            "cyber_mage" to "com.omarchy.omalink.LauncherCyberMage",
-            "astral_spirit" to "com.omarchy.omalink.LauncherAstralSpirit",
+            "classic" to "io.github.m30w_m1x.omalink.LauncherDefault",
+            "anime_girl" to "io.github.m30w_m1x.omalink.LauncherAnimeGirl",
+            "arcane_cat" to "io.github.m30w_m1x.omalink.LauncherArcaneCat",
+            "cyber_mage" to "io.github.m30w_m1x.omalink.LauncherCyberMage",
+            "astral_spirit" to "io.github.m30w_m1x.omalink.LauncherAstralSpirit",
         )
     }
 

@@ -4,7 +4,7 @@ After=network-online.target
 
 [Service]
 Type=simple
-Environment="PATH=/usr/share/omarchy/bin:/usr/local/bin:/usr/bin:/bin:%h/.local/bin"
+Environment="PATH=%h/.local/share/mise/shims:%h/.local/share/mise/command-wrappers/bin:/usr/share/omarchy/bin:/usr/local/bin:/usr/bin:/bin:%h/.local/bin"
 ExecStart=/usr/bin/python3 %h/.local/share/omalink/bridge/omarchy_wizard_bridge.py --host 0.0.0.0 --port 7842
 Restart=on-failure
 RestartSec=3

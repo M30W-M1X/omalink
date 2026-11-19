@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import signal
 import sqlite3
 import subprocess
 import time
@@ -437,23 +438,61 @@ def _discover_claude_sessions(limit: int = 8, claude_root: Path | None = None) -
     return sessions
 
 
+def _dismissed_file(config_dir: Path | None = None) -> Path:
+    if config_dir is not None:
+        return config_dir / "dismissed_sessions.json"
+    xdg = os.environ.get("XDG_CONFIG_HOME")
+    base = Path(xdg) if xdg else Path.home() / ".config"
+    return base / "omalink" / "dismissed_sessions.json"
+
+
+def _load_dismissed(config_dir: Path | None = None) -> dict[str, int]:
+    p = _dismissed_file(config_dir)
+    if not p.exists():
+        return {}
+    try:
+        raw = json.loads(p.read_text(encoding="utf-8", errors="replace"))
+        if isinstance(raw, dict):
+            return {str(k): int(v) for k, v in raw.items() if isinstance(v, (int, float))}
+    except Exception:
+        pass
+    return {}
+
+
+def _save_dismissed(data: dict[str, int], config_dir: Path | None = None) -> None:
+    p = _dismissed_file(config_dir)
+    try:
+        p.parent.mkdir(parents=True, exist_ok=True)
+        # Keep most recent 200 entries
+        items = list(data.items())[-200:]
+        p.write_text(json.dumps(dict(items), indent=2), encoding="utf-8")
+    except OSError:
+        pass
+
+
 def discover_sessions(
     limit: int = 20,
     agy_root: Path | None = None,
     claude_root: Path | None = None,
+    config_dir: Path | None = None,
+    include_dismissed: bool = False,
 ) -> list[dict[str, Any]]:
     """Return sorted active & recent AI agent sessions across supported Omarchy agents."""
-    sessions = _discover_agy_sessions(limit=limit, agy_root=agy_root)
+    sessions = _discover_agy_sessions(limit=limit + 15, agy_root=agy_root)
     sessions.extend(_discover_claude_sessions(limit=min(limit, 8), claude_root=claude_root))
 
+    if not include_dismissed:
+        dismissed = _load_dismissed(config_dir)
+        if dismissed:
+            filtered: list[dict[str, Any]] = []
+            for s in sessions:
+                sid = str(s.get("id", ""))
+                if sid in dismissed and not s.get("is_open") and int(s.get("step_count", 0)) <= dismissed[sid]:
+                    continue
+                filtered.append(s)
+            sessions = filtered
+
     rank = {"needs_response": 0, "running": 1, "error": 2, "idle": 3}
-    sessions.sort(
-        key=lambda s: (
-            rank.get(str(s.get("state", "idle")), 3),
-            0 if s.get("is_open") else 1,
-            # Descending timestamp via inverted string is tricky, so sort twice stably
-        )
-    )
     # Stable secondary sort by updated_at descending first, then priority bucket
     sessions.sort(key=lambda s: str(s.get("updated_at", "")), reverse=True)
     sessions.sort(
@@ -640,3 +679,61 @@ def send_to_live_terminal(window_address: str, text: str, submit: bool = True) -
         return {"ok": True, "message": "Sent reply directly to live terminal window"}
     except Exception as exc:
         return {"ok": False, "error": f"Failed to send to terminal: {exc}"}
+
+
+def close_session(
+    agent: str,
+    session_id: str,
+    step_count: int = 0,
+    config_dir: Path | None = None,
+    check_live_procs: bool = True,
+) -> dict[str, Any]:
+    """Close a live open agent session process/window (if running) and dismiss it from OmaLink."""
+    safe_id = os.path.basename(session_id.strip())
+    if not safe_id:
+        return {"ok": False, "error": "Invalid session id"}
+
+    closed_pid: int | None = None
+    closed_window = ""
+
+    if agent == "agy" and check_live_procs:
+        open_map = _scan_open_agy_processes()
+        info = open_map.get(safe_id)
+        if info:
+            win_addr = str(info.get("window_address", "")).strip()
+            pid = info.get("pid")
+            if win_addr and win_addr.startswith("0x") and shutil.which("hyprctl"):
+                try:
+                    subprocess.run(
+                        ["hyprctl", "dispatch", "closewindow", f"address:{win_addr}"],
+                        check=False,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                        timeout=2.0,
+                    )
+                    closed_window = win_addr
+                except Exception:
+                    pass
+            if isinstance(pid, int) and pid > 1 and pid != os.getpid():
+                try:
+                    os.kill(pid, signal.SIGTERM)
+                    closed_pid = pid
+                except OSError:
+                    pass
+
+    # Persist dismissed state so idle/closed sessions stay out of the active list
+    dismissed = _load_dismissed(config_dir)
+    dismissed[safe_id] = max(int(step_count or 0), dismissed.get(safe_id, 0))
+    _save_dismissed(dismissed, config_dir)
+
+    if closed_pid or closed_window:
+        msg = "Closed live agent session and removed it from OmaLink"
+    else:
+        msg = "Dismissed session from OmaLink"
+    return {
+        "ok": True,
+        "session_id": safe_id,
+        "closed_pid": closed_pid,
+        "closed_window": closed_window,
+        "message": msg,
+    }

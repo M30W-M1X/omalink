@@ -324,7 +324,7 @@ After=network-online.target
 
 [Service]
 Type=simple
-Environment="PATH=/usr/share/omarchy/bin:/usr/local/bin:/usr/bin:/bin:%h/.local/bin"
+Environment="PATH=%h/.local/share/mise/shims:%h/.local/share/mise/command-wrappers/bin:/usr/share/omarchy/bin:/usr/local/bin:/usr/bin:/bin:%h/.local/bin"
 ExecStart=/usr/bin/python3 ${BRIDGE_SCRIPT} --host 0.0.0.0 --port ${PORT}${TLS_FLAG}
 Restart=on-failure
 RestartSec=3

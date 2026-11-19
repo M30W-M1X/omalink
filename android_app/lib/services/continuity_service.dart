@@ -64,9 +64,9 @@ class ContinuityService {
   static final ContinuityService instance = ContinuityService._();
 
   static const MethodChannel _method =
-      MethodChannel('com.omarchy.omalink/continuity');
+      MethodChannel('io.github.m30w_m1x.omalink/continuity');
   static const EventChannel _events =
-      EventChannel('com.omarchy.omalink/continuity_events');
+      EventChannel('io.github.m30w_m1x.omalink/continuity_events');
 
   StreamSubscription<dynamic>? _sub;
 
