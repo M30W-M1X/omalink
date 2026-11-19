@@ -20,7 +20,7 @@ Panel {
   property bool hasToken: false
   property string pairUrl: "http://127.0.0.1:7842"
   property string qrPath: ""
-  property bool showQr: false
+  property bool showQr: true
   property string defaultAgent: "agy"
   property int connectedClients: 0
   property int runningTasks: 0
