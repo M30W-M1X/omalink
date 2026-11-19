@@ -430,6 +430,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                     ],
                   ),
+                  const SizedBox(height: 12),
+                  Divider(color: WizardColors.borderSubtle, height: 1),
+                  const SizedBox(height: 6),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(
+                      'Keep Connected in Background',
+                      style: TextStyle(
+                        color: WizardColors.textPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    subtitle: Text(
+                      'Runs a lightweight Android foreground service so the WebSocket, agent alerts, and Continuity stay live when you leave the app.',
+                      style: TextStyle(color: WizardColors.textMuted, fontSize: 12),
+                    ),
+                    activeThumbColor: WizardColors.cyanArcane,
+                    value: widget.client.settings.keepAliveBackground,
+                    onChanged: (val) => widget.client.setKeepAliveBackground(val),
+                  ),
+                  const SizedBox(height: 4),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () =>
+                          ContinuityService.instance.openBatteryOptimizationSettings(),
+                      icon: const Icon(Icons.battery_saver_rounded, size: 18),
+                      label: const Text('Battery Settings (Set Unrestricted)'),
+                    ),
+                  ),
                 ],
               ),
             ),

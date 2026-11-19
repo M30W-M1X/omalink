@@ -18,6 +18,7 @@ import android.os.Bundle
 import android.os.Environment
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
 import android.provider.MediaStore
 import android.provider.OpenableColumns
 import android.provider.Settings
@@ -135,6 +136,39 @@ class MainActivity : FlutterActivity() {
                     }
                     "getLauncherIcon" -> {
                         result.success(currentLauncherIcon())
+                    }
+                    "startBackgroundService" -> {
+                        val subtitle = call.argument<String>("subtitle")
+                        try {
+                            OmaLinkBackgroundService.start(applicationContext, subtitle)
+                            result.success(true)
+                        } catch (_: Exception) {
+                            result.success(false)
+                        }
+                    }
+                    "stopBackgroundService" -> {
+                        OmaLinkBackgroundService.stop(applicationContext)
+                        result.success(true)
+                    }
+                    "isIgnoringBatteryOptimizations" -> {
+                        val pm = getSystemService(Context.POWER_SERVICE) as? PowerManager
+                        val ignoring = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && pm != null) {
+                            pm.isIgnoringBatteryOptimizations(packageName)
+                        } else {
+                            true
+                        }
+                        result.success(ignoring)
+                    }
+                    "openBatteryOptimizationSettings" -> {
+                        try {
+                            val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS).apply {
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                            startActivity(intent)
+                            result.success(true)
+                        } catch (_: Exception) {
+                            result.success(false)
+                        }
                     }
                     else -> result.notImplemented()
                 }

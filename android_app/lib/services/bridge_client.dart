@@ -452,14 +452,58 @@ class BridgeClient extends ChangeNotifier {
     }
     _lastError = null;
     _sessions = AgentSession.demoList();
+    unawaited(ContinuityService.instance.stopBackgroundService());
     unawaited(refreshAgentUsage());
     _setMood(_hasRunningTask ? WizardMood.casting : WizardMood.idle);
+  }
+
+  Future<void> setKeepAliveBackground(bool enabled) async {
+    _settings = _settings.copyWith(keepAliveBackground: enabled);
+    await _settingsStore.save(_settings);
+    notifyListeners();
+    if (enabled && !_settings.demoMode) {
+      unawaited(
+        ContinuityService.instance.startBackgroundService(
+          subtitle: 'Connected to ${_settings.host}:${_settings.port}',
+        ),
+      );
+    } else {
+      unawaited(ContinuityService.instance.stopBackgroundService());
+    }
+  }
+
+  void ensureConnectedOnResume() {
+    if (_disposed || _settings.demoMode) {
+      unawaited(refreshVitalsShade());
+      return;
+    }
+    if (_settings.keepAliveBackground) {
+      unawaited(
+        ContinuityService.instance.startBackgroundService(
+          subtitle: 'Connected to ${_settings.host}:${_settings.port}',
+        ),
+      );
+    }
+    final wsOpen = _ws != null && _ws!.readyState == WebSocket.open;
+    if (!wsOpen && _connectionState != BridgeConnectionState.connecting) {
+      unawaited(connect());
+    } else {
+      unawaited(refreshVitalsShade());
+      unawaited(refreshSessions());
+    }
   }
 
   Future<void> connect() async {
     if (_settings.demoMode) {
       _activateDemoMode();
       return;
+    }
+    if (_settings.keepAliveBackground) {
+      unawaited(
+        ContinuityService.instance.startBackgroundService(
+          subtitle: 'Linking to ${_settings.host}:${_settings.port}...',
+        ),
+      );
     }
     _reconnectTimer?.cancel();
     await _disconnectSocket();
@@ -475,6 +519,7 @@ class BridgeClient extends ChangeNotifier {
         uri.toString(),
         headers: {'Authorization': 'Bearer ${_settings.token}'},
       ).timeout(const Duration(seconds: 6));
+      _ws!.pingInterval = const Duration(seconds: 25);
 
       _connectionState = BridgeConnectionState.connected;
       _wsSub = _ws!.listen(

@@ -21,6 +21,7 @@ class WizardSettings {
     this.vitalsNotification = true,
     this.avatarStyle = 'classic',
     this.launcherIcon = 'classic',
+    this.keepAliveBackground = true,
   });
 
   final String host;
@@ -42,6 +43,7 @@ class WizardSettings {
   final bool vitalsNotification;
   final String avatarStyle;
   final String launcherIcon;
+  final bool keepAliveBackground;
 
   String get httpScheme => useTls ? 'https' : 'http';
   String get wsScheme => useTls ? 'wss' : 'ws';
@@ -71,6 +73,7 @@ class WizardSettings {
     bool? vitalsNotification,
     String? avatarStyle,
     String? launcherIcon,
+    bool? keepAliveBackground,
   }) {
     return WizardSettings(
       host: host ?? this.host,
@@ -92,6 +95,7 @@ class WizardSettings {
       vitalsNotification: vitalsNotification ?? this.vitalsNotification,
       avatarStyle: avatarStyle ?? this.avatarStyle,
       launcherIcon: launcherIcon ?? this.launcherIcon,
+      keepAliveBackground: keepAliveBackground ?? this.keepAliveBackground,
     );
   }
 }
@@ -116,6 +120,7 @@ class SettingsStore {
   static const _keyVitalsNotif = 'wizard_vitals_notification';
   static const _keyAvatarStyle = 'wizard_avatar_style';
   static const _keyLauncherIcon = 'wizard_launcher_icon';
+  static const _keyKeepAlive = 'wizard_keep_alive_bg';
 
   Future<WizardSettings> load() async {
     final prefs = await SharedPreferences.getInstance();
@@ -139,6 +144,7 @@ class SettingsStore {
       vitalsNotification: prefs.getBool(_keyVitalsNotif) ?? true,
       avatarStyle: prefs.getString(_keyAvatarStyle) ?? 'classic',
       launcherIcon: prefs.getString(_keyLauncherIcon) ?? 'classic',
+      keepAliveBackground: prefs.getBool(_keyKeepAlive) ?? true,
     );
   }
 
@@ -163,5 +169,6 @@ class SettingsStore {
     await prefs.setBool(_keyVitalsNotif, settings.vitalsNotification);
     await prefs.setString(_keyAvatarStyle, settings.avatarStyle);
     await prefs.setString(_keyLauncherIcon, settings.launcherIcon);
+    await prefs.setBool(_keyKeepAlive, settings.keepAliveBackground);
   }
 }

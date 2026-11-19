@@ -208,6 +208,42 @@ class ContinuityService {
     }
   }
 
+  Future<bool> startBackgroundService({String? subtitle}) async {
+    if (!Platform.isAndroid) return true;
+    try {
+      final ok = await _method.invokeMethod<bool>('startBackgroundService', {
+        if (subtitle != null && subtitle.isNotEmpty) 'subtitle': subtitle,
+      });
+      return ok ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> stopBackgroundService() async {
+    if (!Platform.isAndroid) return;
+    try {
+      await _method.invokeMethod<void>('stopBackgroundService');
+    } catch (_) {}
+  }
+
+  Future<bool> isIgnoringBatteryOptimizations() async {
+    if (!Platform.isAndroid) return true;
+    try {
+      final ok = await _method.invokeMethod<bool>('isIgnoringBatteryOptimizations');
+      return ok ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> openBatteryOptimizationSettings() async {
+    if (!Platform.isAndroid) return;
+    try {
+      await _method.invokeMethod<void>('openBatteryOptimizationSettings');
+    } catch (_) {}
+  }
+
   void startListening({
     required void Function(ContinuitySharePayload share) onShare,
     required void Function(ContinuityFileSharePayload fileShare) onFileShare,

@@ -1,7 +1,7 @@
 name: omalink
 description: OmaLink — Android Continuity, Remote Desktop, OS Control & AI Agent companion for Omarchy Linux.
 publish_to: 'none'
-version: 3.2.0+15
+version: 3.3.0+16
 
 environment:
   sdk: '>=3.4.0 <4.0.0'

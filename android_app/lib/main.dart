@@ -42,7 +42,7 @@ class _OmarchyWizardAppState extends State<OmarchyWizardApp>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      widget.client.refreshVitalsShade();
+      widget.client.ensureConnectedOnResume();
     }
   }
 

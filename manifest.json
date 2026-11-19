@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "omalink.panel",
   "name": "OmaLink",
-  "version": "3.2.0",
+  "version": "3.3.0",
   "author": "M30W-M1X",
   "license": "MIT",
   "description": "Android Continuity, Remote Desktop, Trackpad, OS Control, and AI Agent companion bridge for Omarchy Linux.",
