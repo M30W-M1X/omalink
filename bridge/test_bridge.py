@@ -750,6 +750,92 @@ class BridgeTests(unittest.TestCase):
         finally:
             await bridge.stop()
 
+    def test_sessions_discovery_transcript_and_pending_question(self) -> None:
+        import sqlite3
+        import omarchy_sessions
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            db_path = root / "conversation_summaries.db"
+            conn = sqlite3.connect(str(db_path))
+            conn.execute(
+                """
+                CREATE TABLE conversation_summaries (
+                    conversation_id text PRIMARY KEY,
+                    title text NOT NULL DEFAULT "",
+                    preview text NOT NULL DEFAULT "",
+                    step_count integer NOT NULL DEFAULT 0,
+                    last_modified_time text NOT NULL,
+                    workspace_uris text NOT NULL,
+                    status text NOT NULL DEFAULT "",
+                    parent_conversation_id text NOT NULL DEFAULT "",
+                    not_fully_idle integer NOT NULL DEFAULT 0,
+                    killed integer NOT NULL DEFAULT 0
+                )
+                """
+            )
+            conn.execute(
+                """
+                INSERT INTO conversation_summaries VALUES (
+                    'sess-123', 'Build OmaLink Plugin', 'Ready to ship?', 4,
+                    '2026-11-19 03:00:00+00:00', '["file:///home/omarchy/Projects/omalink"]',
+                    'CASCADE_RUN_STATUS_WAITING_FOR_USER', '', 1, 0
+                )
+                """
+            )
+            conn.commit()
+            conn.close()
+
+            log_dir = root / "brain" / "sess-123" / ".system_generated" / "logs"
+            log_dir.mkdir(parents=True)
+            lines = [
+                json.dumps({
+                    "step_index": 1,
+                    "source": "USER_EXPLICIT",
+                    "type": "USER_INPUT",
+                    "status": "DONE",
+                    "created_at": "2026-11-19T02:59:00Z",
+                    "content": "Build the plugin and ask me before publishing",
+                }),
+                json.dumps({
+                    "step_index": 2,
+                    "source": "MODEL",
+                    "type": "PLANNER_RESPONSE",
+                    "status": "DONE",
+                    "created_at": "2026-11-19T03:00:00Z",
+                    "content": "",
+                    "tool_calls": [
+                        {
+                            "name": "ask_question",
+                            "args": {
+                                "questions": json.dumps([
+                                    {
+                                        "question": "Publish v3.1.0 now?",
+                                        "options": ["Yes, ship it", "Wait"],
+                                        "is_multi_select": False,
+                                    }
+                                ])
+                            },
+                        }
+                    ],
+                }),
+            ]
+            (log_dir / "transcript.jsonl").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+            sessions = omarchy_sessions.discover_sessions(limit=5, agy_root=root, claude_root=root / "none")
+            self.assertEqual(len(sessions), 1)
+            self.assertEqual(sessions[0]["id"], "sess-123")
+            self.assertEqual(sessions[0]["state"], "needs_response")
+            self.assertEqual(sessions[0]["workspace"], "/home/omarchy/Projects/omalink")
+            self.assertEqual(len(sessions[0]["pending_questions"]), 1)
+            self.assertEqual(sessions[0]["pending_questions"][0]["question"], "Publish v3.1.0 now?")
+
+            tr = omarchy_sessions.read_session_transcript("agy", "sess-123", limit=10, agy_root=root)
+            self.assertTrue(tr["ok"])
+            self.assertEqual(len(tr["messages"]), 2)
+            self.assertEqual(tr["messages"][0]["role"], "user")
+            self.assertEqual(tr["messages"][1]["role"], "question")
+
 
 if __name__ == "__main__":
     unittest.main()

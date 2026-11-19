@@ -10,6 +10,7 @@ import '../widgets/spell_log_view.dart';
 import '../widgets/status_pill.dart';
 import 'continuity_screen.dart';
 import 'desktop_screen.dart';
+import 'sessions_screen.dart';
 import 'spellbook_screen.dart';
 import 'trackpad_screen.dart';
 
@@ -104,6 +105,14 @@ class _WizardHomeScreenState extends State<WizardHomeScreen> {
     );
   }
 
+  void _openSessions() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => SessionsScreen(client: widget.client),
+      ),
+    );
+  }
+
   void _openToolsMenu() {
     showModalBottomSheet<void>(
       context: context,
@@ -128,6 +137,16 @@ class _WizardHomeScreenState extends State<WizardHomeScreen> {
                   ),
                 ),
                 const SizedBox(height: 8),
+                _ToolMenuTile(
+                  icon: Icons.forum_rounded,
+                  accent: WizardColors.goldStarlight,
+                  title: 'Live Agent Sessions',
+                  subtitle: 'Peek into running agy/claude sessions & reply from phone',
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    _openSessions();
+                  },
+                ),
                 _ToolMenuTile(
                   icon: Icons.desktop_windows_outlined,
                   accent: WizardColors.cyanArcane,
@@ -275,6 +294,16 @@ class _WizardHomeScreenState extends State<WizardHomeScreen> {
                   children: [
                     Expanded(
                       child: _QuickToolTile(
+                        icon: Icons.forum_rounded,
+                        label: 'Sessions',
+                        accent: WizardColors.goldStarlight,
+                        badgeCount: client.sessionsNeedingResponseCount,
+                        onTap: _openSessions,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _QuickToolTile(
                         icon: Icons.desktop_windows_outlined,
                         label: 'Desktop',
                         accent: WizardColors.cyanArcane,
@@ -299,17 +328,103 @@ class _WizardHomeScreenState extends State<WizardHomeScreen> {
                         onTap: _openContinuity,
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _QuickToolTile(
-                        icon: Icons.history_rounded,
-                        label: 'History',
-                        accent: WizardColors.goldStarlight,
-                        onTap: _openSpellbook,
-                      ),
-                    ),
                   ],
                 ),
+                if (client.sessionsNeedingResponseCount > 0 ||
+                    client.sessions.any((s) => s.isRunning)) ...[
+                  const SizedBox(height: 10),
+                  Builder(
+                    builder: (_) {
+                      final spotlight = client.sessions.firstWhere(
+                        (s) => s.needsResponse,
+                        orElse: () => client.sessions.firstWhere(
+                          (s) => s.isRunning,
+                          orElse: () => client.sessions.first,
+                        ),
+                      );
+                      final isWaiting = spotlight.needsResponse;
+                      final tint = isWaiting
+                          ? WizardColors.goldStarlight
+                          : WizardColors.cyanArcane;
+                      return Card(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(18),
+                          side: BorderSide(color: tint.withValues(alpha: 0.65)),
+                        ),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(18),
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) => SessionPeekScreen(
+                                  client: client,
+                                  initialSession: spotlight,
+                                ),
+                              ),
+                            );
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  isWaiting
+                                      ? Icons.mark_chat_unread_rounded
+                                      : Icons.bolt_rounded,
+                                  color: tint,
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        isWaiting
+                                            ? '${spotlight.title} needs your reply'
+                                            : '${spotlight.title} is running',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          color: WizardColors.textPrimary,
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                      if (spotlight.lastActivity.isNotEmpty)
+                                        Text(
+                                          spotlight.lastActivity,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            color: tint,
+                                            fontSize: 11,
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Peek',
+                                  style: TextStyle(
+                                    color: tint,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                Icon(Icons.chevron_right_rounded, color: tint, size: 18),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ],
                 if (client.isRinging) ...[
                   const SizedBox(height: 10),
                   Card(
@@ -759,12 +874,14 @@ class _QuickToolTile extends StatelessWidget {
     required this.label,
     required this.accent,
     required this.onTap,
+    this.badgeCount = 0,
   });
 
   final IconData icon;
   final String label;
   final Color accent;
   final VoidCallback onTap;
+  final int badgeCount;
 
   @override
   Widget build(BuildContext context) {
@@ -778,12 +895,44 @@ class _QuickToolTile extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: WizardColors.borderSubtle),
+            border: Border.all(
+              color: badgeCount > 0
+                  ? accent.withValues(alpha: 0.7)
+                  : WizardColors.borderSubtle,
+            ),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, size: 20, color: accent),
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Icon(icon, size: 20, color: accent),
+                  if (badgeCount > 0)
+                    Positioned(
+                      right: -8,
+                      top: -5,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 4,
+                          vertical: 1,
+                        ),
+                        decoration: BoxDecoration(
+                          color: accent,
+                          borderRadius: BorderRadius.circular(99),
+                        ),
+                        child: Text(
+                          '$badgeCount',
+                          style: TextStyle(
+                            color: WizardColors.obsidian,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
               const SizedBox(height: 4),
               Text(
                 label,

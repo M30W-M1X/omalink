@@ -18,11 +18,32 @@ void main() {
     await tester.pump();
 
     expect(find.text('Tools'), findsOneWidget);
+    expect(find.text('Sessions'), findsOneWidget);
     expect(find.text('Desktop'), findsOneWidget);
     expect(find.text('Trackpad'), findsOneWidget);
     expect(find.text('Continuity'), findsOneWidget);
-    expect(find.text('History'), findsOneWidget);
     expect(client.mood, WizardMood.idle);
+
+    // Peek into Live Agent Sessions and respond to a pending question
+    await tester.tap(find.text('Sessions'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 450));
+    expect(find.text('Live Agent Sessions'), findsOneWidget);
+    expect(find.text('OmaLink Marketplace Build'), findsOneWidget);
+    await tester.tap(find.text('OmaLink Marketplace Build'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 450));
+    expect(find.text('NEEDS YOUR RESPONSE'), findsOneWidget);
+    await tester.tap(find.text('Yes, tag & publish now'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(client.sessions.first.state, 'running');
+    await tester.tap(find.byTooltip('Back').last);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.tap(find.byTooltip('Back').last);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
 
     // Tap the mascot to boop Arcane Agy
     await tester.tap(find.byType(ArcaneWizardMascot));

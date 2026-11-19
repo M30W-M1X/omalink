@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 
+import '../models/agent_session.dart';
 import '../models/agent_task.dart';
 import '../models/system_control.dart';
 import '../models/wizard_avatar.dart';
@@ -44,6 +45,17 @@ class BridgeClient extends ChangeNotifier {
 
   final List<AgentTask> _tasks = <AgentTask>[];
   List<AgentTask> get tasks => List.unmodifiable(_tasks);
+
+  List<AgentSession> _sessions = <AgentSession>[];
+  List<AgentSession> get sessions => List.unmodifiable(_sessions);
+  bool _sessionsLoading = false;
+  bool get sessionsLoading => _sessionsLoading;
+  final Map<String, List<SessionTranscriptMessage>> _demoTranscripts = {};
+
+  int get sessionsNeedingResponseCount =>
+      _sessions.where((s) => s.needsResponse).length;
+  int get activeSessionsCount =>
+      _sessions.where((s) => s.needsResponse || s.isRunning || s.isOpen).length;
 
   String? _selectedTaskId;
   AgentTask? get activeOrSelectedTask {
@@ -439,6 +451,7 @@ class BridgeClient extends ChangeNotifier {
       _selectedWorkspace = _hostStatus.workspaces.first;
     }
     _lastError = null;
+    _sessions = AgentSession.demoList();
     unawaited(refreshAgentUsage());
     _setMood(_hasRunningTask ? WizardMood.casting : WizardMood.idle);
   }
@@ -480,6 +493,7 @@ class BridgeClient extends ChangeNotifier {
       notifyListeners();
       unawaited(refreshSystemState());
       unawaited(browseDirectory());
+      unawaited(refreshSessions());
     } catch (err) {
       _connectionState = BridgeConnectionState.disconnected;
       _lastError = 'Could not reach Omarchy bridge (${_settings.host}:${_settings.port}): $err';
@@ -644,6 +658,56 @@ class BridgeClient extends ChangeNotifier {
               notifyListeners();
             }
           });
+          break;
+        case 'sessions.updated':
+          final rawSessions = data['sessions'] as List<dynamic>?;
+          if (rawSessions != null) {
+            _sessions = rawSessions
+                .whereType<Map<dynamic, dynamic>>()
+                .map((m) => AgentSession.fromJson(Map<String, dynamic>.from(m)))
+                .toList();
+            notifyListeners();
+          }
+          break;
+        case 'session.needs_response':
+          final rawSess = data['session'];
+          if (rawSess is Map<dynamic, dynamic>) {
+            final session = AgentSession.fromJson(Map<String, dynamic>.from(rawSess));
+            _upsertSession(session);
+            _setMood(
+              WizardMood.awaitingApproval,
+              quip: '${session.title} needs your response!',
+            );
+            if (_settings.notifyOnComplete) {
+              unawaited(
+                _notifications.notifySessionAlert(
+                  sessionId: session.id,
+                  sessionTitle: session.title,
+                  body: session.pendingQuestions.isNotEmpty
+                      ? session.pendingQuestions.first.question
+                      : session.lastActivity,
+                  needsResponse: true,
+                ),
+              );
+            }
+          }
+          break;
+        case 'session.completed':
+          final rawSess = data['session'];
+          if (rawSess is Map<dynamic, dynamic>) {
+            final session = AgentSession.fromJson(Map<String, dynamic>.from(rawSess));
+            _upsertSession(session);
+            if (_settings.notifyOnComplete) {
+              unawaited(
+                _notifications.notifySessionAlert(
+                  sessionId: session.id,
+                  sessionTitle: session.title,
+                  body: session.lastActivity,
+                  needsResponse: false,
+                ),
+              );
+            }
+          }
           break;
       }
     } catch (e) {
@@ -1833,6 +1897,159 @@ class BridgeClient extends ChangeNotifier {
     }
 
     scheduleNext();
+  }
+
+  void _upsertSession(AgentSession session) {
+    final idx = _sessions.indexWhere((s) => s.id == session.id);
+    if (idx >= 0) {
+      _sessions = List<AgentSession>.from(_sessions)..[idx] = session;
+    } else {
+      _sessions = [session, ..._sessions];
+    }
+    notifyListeners();
+  }
+
+  Future<void> refreshSessions({int limit = 20}) async {
+    if (_settings.demoMode) {
+      if (_sessions.isEmpty) {
+        _sessions = AgentSession.demoList();
+        notifyListeners();
+      }
+      return;
+    }
+    _sessionsLoading = true;
+    notifyListeners();
+    try {
+      final resp = await http
+          .get(
+            Uri.parse('${_settings.httpBaseUrl}/api/sessions?limit=$limit'),
+            headers: _headers,
+          )
+          .timeout(const Duration(seconds: 6));
+      if (resp.statusCode == 200) {
+        final decoded = jsonDecode(resp.body) as Map<String, dynamic>;
+        final raw = decoded['sessions'] as List<dynamic>? ?? const [];
+        _sessions = raw
+            .whereType<Map<dynamic, dynamic>>()
+            .map((m) => AgentSession.fromJson(Map<String, dynamic>.from(m)))
+            .toList();
+      }
+    } catch (_) {
+      // Keep cached sessions on transient error
+    } finally {
+      _sessionsLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<List<SessionTranscriptMessage>> fetchSessionTranscript(
+    AgentSession session, {
+    int limit = 45,
+  }) async {
+    if (_settings.demoMode) {
+      return List<SessionTranscriptMessage>.from(
+        _demoTranscripts[session.id] ??
+            SessionTranscriptMessage.demoTranscript(session.id),
+      );
+    }
+    try {
+      final resp = await http
+          .get(
+            Uri.parse(
+              '${_settings.httpBaseUrl}/api/sessions/${Uri.encodeComponent(session.agent)}/${Uri.encodeComponent(session.id)}/transcript?limit=$limit',
+            ),
+            headers: _headers,
+          )
+          .timeout(const Duration(seconds: 6));
+      if (resp.statusCode == 200) {
+        final decoded = jsonDecode(resp.body) as Map<String, dynamic>;
+        final raw = decoded['messages'] as List<dynamic>? ?? const [];
+        return raw
+            .whereType<Map<dynamic, dynamic>>()
+            .map(
+              (m) => SessionTranscriptMessage.fromJson(
+                Map<String, dynamic>.from(m),
+              ),
+            )
+            .toList();
+      }
+    } catch (_) {}
+    return const [];
+  }
+
+  Future<String?> sendSessionReply({
+    required AgentSession session,
+    required String message,
+    bool viaLiveTerminal = false,
+  }) async {
+    final trimmed = message.trim();
+    if (trimmed.isEmpty) return 'Enter a reply first.';
+
+    if (_settings.demoMode) {
+      final list = List<SessionTranscriptMessage>.from(
+        _demoTranscripts[session.id] ??
+            SessionTranscriptMessage.demoTranscript(session.id),
+      );
+      list.add(
+        SessionTranscriptMessage(
+          step: list.length + 1,
+          role: 'user',
+          text: trimmed,
+        ),
+      );
+      list.add(
+        SessionTranscriptMessage(
+          step: list.length + 2,
+          role: 'assistant',
+          text: viaLiveTerminal
+              ? 'Received in live terminal! Continuing "${session.title}" now...'
+              : 'Resumed session via ${session.agent} CLI! Working on: "$trimmed"',
+        ),
+      );
+      _demoTranscripts[session.id] = list;
+      _upsertSession(
+        session.copyWith(
+          state: 'running',
+          lastActivity: 'Continuing: $trimmed',
+          pendingQuestions: const [],
+          stepCount: session.stepCount + 2,
+        ),
+      );
+      return null;
+    }
+
+    try {
+      final resp = await http
+          .post(
+            Uri.parse(
+              '${_settings.httpBaseUrl}/api/sessions/${Uri.encodeComponent(session.agent)}/${Uri.encodeComponent(session.id)}/send',
+            ),
+            headers: _headers,
+            body: jsonEncode({
+              'message': trimmed,
+              'mode': viaLiveTerminal ? 'terminal' : 'resume',
+              'window_address': session.windowAddress,
+              'workspace': session.workspace,
+              'agent_mode': _selectedMode,
+              'effort': _selectedEffort,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
+      final decoded = jsonDecode(resp.body) as Map<String, dynamic>;
+      if (resp.statusCode >= 200 && resp.statusCode < 300) {
+        if (decoded['task'] is Map<String, dynamic>) {
+          final task = AgentTask.fromJson(decoded['task'] as Map<String, dynamic>);
+          _watchedTaskIds.add(task.id);
+          _upsertTask(task);
+          _selectedTaskId = task.id;
+        }
+        unawaited(refreshSessions());
+        return null;
+      }
+      return decoded['error']?.toString() ?? 'Failed to send reply (${resp.statusCode})';
+    } catch (e) {
+      return 'Failed to reach bridge: $e';
+    }
   }
 
   @override

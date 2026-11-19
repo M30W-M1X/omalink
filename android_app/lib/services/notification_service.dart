@@ -279,6 +279,48 @@ class NotificationService {
     }
   }
 
+  Future<void> notifySessionAlert({
+    required String sessionId,
+    required String sessionTitle,
+    required String body,
+    required bool needsResponse,
+  }) async {
+    await init();
+    if (!_initialized) return;
+
+    final title = needsResponse
+        ? '💬 $sessionTitle needs your response'
+        : '✨ $sessionTitle finished';
+    final text = body.trim().isNotEmpty
+        ? body.trim()
+        : (needsResponse
+            ? 'Open OmaLink to peek in and respond.'
+            : 'Open OmaLink to review output or continue.');
+
+    final details = NotificationDetails(
+      android: AndroidNotificationDetails(
+        _channelId,
+        _channelName,
+        channelDescription: _channelDescription,
+        importance: Importance.high,
+        priority: Priority.high,
+        icon: _smallIcon,
+        styleInformation: BigTextStyleInformation(text),
+      ),
+    );
+
+    try {
+      await _plugin.show(
+        ('session:$sessionId').hashCode & 0x7FFFFFFF,
+        title,
+        text,
+        details,
+      );
+    } catch (e) {
+      debugPrint('Failed to show session alert: $e');
+    }
+  }
+
   Future<String?> showTestNotification() async {
     await init();
     if (!_initialized) {

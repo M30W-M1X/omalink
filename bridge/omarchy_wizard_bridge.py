@@ -37,6 +37,7 @@ import omarchy_control
 import omarchy_desktop
 import omarchy_files
 import omarchy_pty
+import omarchy_sessions
 
 WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 DEFAULT_PORT = 7842
@@ -748,9 +749,13 @@ class OmarchyWizardBridge:
     async def _watch_host_loop(self) -> None:
         last_sig = omarchy_control.read_theme_generation()
         last_clip_mtime = omarchy_continuity.clipboard_history_mtime()
+        session_states: dict[str, tuple[str, int, str]] | None = None
+        last_sessions_sig = ""
+        tick = 0
         try:
             while True:
                 await asyncio.sleep(2.0)
+                tick += 1
                 if not self.ws_clients:
                     continue
                 sig = omarchy_control.read_theme_generation()
@@ -768,6 +773,40 @@ class OmarchyWizardBridge:
                             "continuity.clipboard_update",
                             {"text": history[0], "history": history},
                         )
+
+                # Poll live AI agent sessions every 4 seconds for real-time peek & alerts
+                if tick % 2 == 0:
+                    sessions = await asyncio.to_thread(omarchy_sessions.discover_sessions, 15)
+                    cur_map = {
+                        str(s["id"]): (
+                            str(s.get("state", "idle")),
+                            int(s.get("step_count", 0)),
+                            str(s.get("last_activity", "")),
+                        )
+                        for s in sessions
+                    }
+                    cur_sig = json.dumps(cur_map, sort_keys=True)
+                    if session_states is None:
+                        session_states = cur_map
+                        last_sessions_sig = cur_sig
+                    else:
+                        for s in sessions:
+                            sid = str(s["id"])
+                            cur_state = str(s.get("state", "idle"))
+                            cur_steps = int(s.get("step_count", 0))
+                            prev = session_states.get(sid)
+                            prev_state = prev[0] if prev else ""
+                            prev_steps = prev[1] if prev else -1
+                            if cur_state == "needs_response" and (
+                                prev_state != "needs_response" or cur_steps > prev_steps
+                            ):
+                                await self.broadcast("session.needs_response", {"session": s})
+                            elif prev_state == "running" and cur_state == "idle":
+                                await self.broadcast("session.completed", {"session": s})
+                        if cur_sig != last_sessions_sig:
+                            last_sessions_sig = cur_sig
+                            await self.broadcast("sessions.updated", {"sessions": sessions})
+                        session_states = cur_map
         except asyncio.CancelledError:
             return
 
@@ -1089,6 +1128,69 @@ class OmarchyWizardBridge:
             agents = await omarchy_control.read_agents_usage(force=force)
             await self._send_http_json(writer, HTTPStatus.OK, {"agents": agents})
             return
+
+        if method == "GET" and path == "/api/sessions":
+            try:
+                limit = int((query.get("limit") or ["20"])[0])
+            except ValueError:
+                limit = 20
+            sessions = await asyncio.to_thread(omarchy_sessions.discover_sessions, limit)
+            await self._send_http_json(writer, HTTPStatus.OK, {"ok": True, "sessions": sessions})
+            return
+
+        if path.startswith("/api/sessions/"):
+            rest = path[len("/api/sessions/") :].strip("/")
+            parts = rest.split("/")
+            if len(parts) == 3 and parts[2] == "transcript" and method == "GET":
+                agent_name, session_id = parts[0], parts[1]
+                try:
+                    limit = int((query.get("limit") or ["45"])[0])
+                except ValueError:
+                    limit = 45
+                res = await asyncio.to_thread(
+                    omarchy_sessions.read_session_transcript, agent_name, session_id, limit
+                )
+                status_code = HTTPStatus.OK if res.get("ok") else HTTPStatus.NOT_FOUND
+                await self._send_http_json(writer, status_code, res)
+                return
+
+            if len(parts) == 3 and parts[2] == "send" and method == "POST":
+                agent_name, session_id = parts[0], parts[1]
+                try:
+                    payload = json.loads(body_bytes.decode("utf-8")) if body_bytes else {}
+                except json.JSONDecodeError:
+                    await self._send_http_json(writer, HTTPStatus.BAD_REQUEST, {"error": "Invalid JSON"})
+                    return
+                message = str(payload.get("message", "")).strip()
+                if not message:
+                    await self._send_http_json(writer, HTTPStatus.BAD_REQUEST, {"error": "Message is required"})
+                    return
+                mode = str(payload.get("mode", "resume")).strip().lower()
+                window_address = str(payload.get("window_address", "")).strip()
+                workspace = str(payload.get("workspace", "")).strip() or None
+
+                if mode == "terminal":
+                    res = await asyncio.to_thread(
+                        omarchy_sessions.send_to_live_terminal, window_address, message, True
+                    )
+                    status_code = HTTPStatus.OK if res.get("ok") else HTTPStatus.BAD_REQUEST
+                    await self._send_http_json(writer, status_code, res)
+                    return
+
+                task = await self.create_task(
+                    prompt=message,
+                    agent=agent_name,
+                    mode=str(payload.get("agent_mode", "auto")),
+                    effort=str(payload.get("effort", "high")),
+                    cwd=workspace,
+                    conversation_id=session_id,
+                )
+                await self._send_http_json(
+                    writer,
+                    HTTPStatus.CREATED,
+                    {"ok": True, "mode": "resume", "task": task.to_dict()},
+                )
+                return
 
         if method == "GET" and path == "/api/pairing/info":
             uri = self.pairing_uri()

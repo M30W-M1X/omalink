@@ -68,6 +68,9 @@ No Python pip dependencies are required — the bridge runs on **Python 3.11+ st
 
 ## Features
 
+- **Live AI Agent Sessions (Peek, Alerts & Interactive Reply)**
+  - Automatically discovers open and recent desktop **`agy`** and **`claude`** sessions, shows live tool calls and status (`NEEDS RESPONSE`, `RUNNING`, `OPEN`, `IDLE`), and fires a high-priority Android notification the moment an agent asks a question (`ask_question`) or finishes a build.
+  - Peek into any session's live transcript from your phone, answer multiple-choice prompts with 1 tap, or tell the agent to keep building — either by resuming via the Agent CLI or typing straight into its open Hyprland terminal window.
 - **AI Agent Remote Controller & 5 Animated Mascots / App Icons**
   - Launch, monitor, stream, cancel, and resume sessions for `agy`, `claude`, `codex`, `kimi`, and `opencode`.
   - Live AI usage & quota overview right on the home screen + high-importance Android alerts when a task finishes or fails.
