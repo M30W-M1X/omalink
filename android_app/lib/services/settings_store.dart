@@ -18,6 +18,7 @@ class WizardSettings {
     this.useTls = false,
     this.tlsFingerprint = '',
     this.tailscaleHost = '',
+    this.vitalsNotification = true,
   });
 
   final String host;
@@ -36,6 +37,7 @@ class WizardSettings {
   final bool useTls;
   final String tlsFingerprint;
   final String tailscaleHost;
+  final bool vitalsNotification;
 
   String get httpScheme => useTls ? 'https' : 'http';
   String get wsScheme => useTls ? 'wss' : 'ws';
@@ -62,6 +64,7 @@ class WizardSettings {
     bool? useTls,
     String? tlsFingerprint,
     String? tailscaleHost,
+    bool? vitalsNotification,
   }) {
     return WizardSettings(
       host: host ?? this.host,
@@ -80,6 +83,7 @@ class WizardSettings {
       useTls: useTls ?? this.useTls,
       tlsFingerprint: tlsFingerprint ?? this.tlsFingerprint,
       tailscaleHost: tailscaleHost ?? this.tailscaleHost,
+      vitalsNotification: vitalsNotification ?? this.vitalsNotification,
     );
   }
 }
@@ -101,6 +105,7 @@ class SettingsStore {
   static const _keyUseTls = 'wizard_use_tls';
   static const _keyTlsFp = 'wizard_tls_fingerprint';
   static const _keyTailscaleHost = 'wizard_tailscale_host';
+  static const _keyVitalsNotif = 'wizard_vitals_notification';
 
   Future<WizardSettings> load() async {
     final prefs = await SharedPreferences.getInstance();
@@ -121,6 +126,7 @@ class SettingsStore {
       useTls: prefs.getBool(_keyUseTls) ?? false,
       tlsFingerprint: prefs.getString(_keyTlsFp) ?? '',
       tailscaleHost: prefs.getString(_keyTailscaleHost) ?? '',
+      vitalsNotification: prefs.getBool(_keyVitalsNotif) ?? true,
     );
   }
 
@@ -142,5 +148,6 @@ class SettingsStore {
     await prefs.setBool(_keyUseTls, settings.useTls);
     await prefs.setString(_keyTlsFp, settings.tlsFingerprint);
     await prefs.setString(_keyTailscaleHost, settings.tailscaleHost);
+    await prefs.setBool(_keyVitalsNotif, settings.vitalsNotification);
   }
 }

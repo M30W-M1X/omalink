@@ -129,6 +129,7 @@ class BridgeClient extends ChangeNotifier {
   Timer? _celebrateResetTimer;
   Timer? _demoTimer;
   Timer? _batteryTimer;
+  Timer? _vitalsTimer;
   final Set<String> _watchedTaskIds = <String>{};
 
   bool _isRinging = false;
@@ -511,7 +512,8 @@ class BridgeClient extends ChangeNotifier {
           }
           unawaited(_reportDeviceBattery());
           _startBatteryHeartbeat();
-          unawaited(refreshAgentUsage());
+          _startVitalsTicker();
+          unawaited(refreshVitalsShade());
           if (data['tasks'] is List) {
             _tasks
               ..clear()
@@ -1469,8 +1471,68 @@ class BridgeClient extends ChangeNotifier {
             .map(AgentUsageInfo.fromJson)
             .toList();
         notifyListeners();
+        unawaited(_pushVitalsShadeIfEnabled());
       }
     } catch (_) {}
+  }
+
+  void _startVitalsTicker() {
+    _vitalsTimer?.cancel();
+    if (_settings.demoMode) return;
+    _vitalsTimer = Timer.periodic(const Duration(seconds: 45), (_) {
+      if (!_disposed && !_settings.demoMode && _settings.vitalsNotification) {
+        unawaited(refreshVitalsShade());
+      }
+    });
+  }
+
+  Future<void> _pushVitalsShadeIfEnabled() async {
+    if (!_settings.vitalsNotification) return;
+    final runningCount = _tasks.where((t) => t.status == TaskStatus.running).length;
+    await _notifications.showVitalsNotification(
+      _systemState,
+      _agentUsage,
+      runningTasks: runningCount,
+    );
+  }
+
+  Future<void> refreshVitalsShade({bool forceUsage = false}) async {
+    if (!_settings.vitalsNotification) {
+      await _notifications.cancelVitalsNotification();
+      return;
+    }
+    if (_settings.demoMode) {
+      await refreshAgentUsage();
+      await _pushVitalsShadeIfEnabled();
+      return;
+    }
+    try {
+      final resp = await http
+          .get(Uri.parse('${_settings.httpBaseUrl}/api/system/state'), headers: _headers)
+          .timeout(const Duration(seconds: 6));
+      if (resp.statusCode == 200) {
+        final decoded = jsonDecode(resp.body) as Map<String, dynamic>;
+        _systemState = SystemState.fromJson(decoded);
+        if (_systemState.theme.palette != null) {
+          _applyDesktopThemeJson(_systemState.theme.palette!);
+        }
+      }
+    } catch (_) {}
+    await refreshAgentUsage(force: forceUsage);
+    await _pushVitalsShadeIfEnabled();
+  }
+
+  Future<void> updateVitalsNotification(bool enabled) async {
+    _settings = _settings.copyWith(vitalsNotification: enabled);
+    await _settingsStore.save(_settings);
+    notifyListeners();
+    if (enabled) {
+      _startVitalsTicker();
+      await refreshVitalsShade(forceUsage: true);
+    } else {
+      _vitalsTimer?.cancel();
+      await _notifications.cancelVitalsNotification();
+    }
   }
 
   Future<void> updateAutoSyncClipboard(bool enabled) async {
@@ -1759,6 +1821,7 @@ class BridgeClient extends ChangeNotifier {
     _celebrateResetTimer?.cancel();
     _demoTimer?.cancel();
     _batteryTimer?.cancel();
+    _vitalsTimer?.cancel();
     unawaited(_disconnectSocket());
     super.dispose();
   }

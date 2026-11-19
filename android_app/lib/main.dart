@@ -29,11 +29,26 @@ class OmarchyWizardApp extends StatefulWidget {
   State<OmarchyWizardApp> createState() => _OmarchyWizardAppState();
 }
 
-class _OmarchyWizardAppState extends State<OmarchyWizardApp> {
+class _OmarchyWizardAppState extends State<OmarchyWizardApp>
+    with WidgetsBindingObserver {
   int _tabIndex = 0;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      widget.client.refreshVitalsShade();
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     widget.client.dispose();
     super.dispose();
   }

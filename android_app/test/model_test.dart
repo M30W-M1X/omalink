@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:omarchy_wizard/models/agent_task.dart';
 import 'package:omarchy_wizard/models/system_control.dart';
 import 'package:omarchy_wizard/models/wizard_mood.dart';
+import 'package:omarchy_wizard/services/notification_service.dart';
 import 'package:omarchy_wizard/services/tls_overrides.dart';
 import 'package:omarchy_wizard/theme/wizard_theme.dart';
 
@@ -179,5 +180,26 @@ void main() {
     expect(usage.name, 'Antigravity');
     expect(usage.todayPrompts, 13);
     expect(usage.limits.first.percent, 25.0);
+
+    final shade = NotificationService.formatVitalsNotification(
+      SystemState.demo(),
+      [
+        const AgentUsageInfo(
+          id: 'agy',
+          name: 'Antigravity',
+          tierLabel: 'Pro',
+          todayPrompts: 13,
+          todayTokens: 19300000,
+          limits: [
+            AgentQuotaLimit(title: 'Session', percent: 18.0),
+            AgentQuotaLimit(title: 'Weekly', percent: 32.0),
+          ],
+        ),
+      ],
+    );
+    expect(shade.title, contains('CPU 14%'));
+    expect(shade.body, contains('Session 18%'));
+    expect(shade.body, contains('Weekly 32%'));
+    expect(shade.lines.any((l) => l.contains('19.3M tok')), isTrue);
   });
 }

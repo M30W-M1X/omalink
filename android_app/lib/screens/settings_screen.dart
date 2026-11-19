@@ -354,6 +354,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     value: _notifyOnComplete,
                     onChanged: (val) => setState(() => _notifyOnComplete = val),
                   ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(
+                      'Silent Vitals & Agy Limits Shade',
+                      style: TextStyle(color: WizardColors.textPrimary),
+                    ),
+                    subtitle: Text(
+                      'Ongoing silent notification showing CPU, RAM, uptime, and Agy quota limits.',
+                      style: TextStyle(color: WizardColors.textMuted, fontSize: 12),
+                    ),
+                    activeThumbColor: WizardColors.cyanArcane,
+                    value: widget.client.settings.vitalsNotification,
+                    onChanged: (val) => widget.client.updateVitalsNotification(val),
+                  ),
+                  if (widget.client.settings.vitalsNotification)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: OutlinedButton.icon(
+                        onPressed: () async {
+                          final messenger = ScaffoldMessenger.of(context);
+                          await widget.client.refreshVitalsShade(forceUsage: true);
+                          messenger.showSnackBar(
+                            const SnackBar(content: Text('Updated silent vitals & Agy shade card')),
+                          );
+                        },
+                        icon: const Icon(Icons.monitor_heart_outlined, size: 17),
+                        label: const Text('Update Vitals Shade Now'),
+                      ),
+                    ),
                   const SizedBox(height: 8),
                   Row(
                     children: [
