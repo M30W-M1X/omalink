@@ -695,7 +695,7 @@ class _DropdownPill<T> extends StatelessWidget {
               isDense: true,
               dropdownColor: WizardColors.surfaceElevated,
               iconEnabledColor: WizardColors.cyanArcane,
-              style: TextStyle(
+              style: (Theme.of(context).textTheme.bodyMedium ?? const TextStyle()).copyWith(
                 color: WizardColors.textPrimary,
                 fontSize: 13,
                 fontWeight: FontWeight.w600,

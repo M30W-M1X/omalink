@@ -592,6 +592,8 @@ class WizardTheme {
     return ThemeData(
       useMaterial3: true,
       brightness: brightness,
+      fontFamily: 'Roboto',
+      fontFamilyFallback: const ['NotoSymbols', 'NotoSymbols2', 'NotoEmoji'],
       colorScheme: scheme,
       scaffoldBackgroundColor: palette.obsidian,
       cardTheme: CardThemeData(
@@ -608,6 +610,8 @@ class WizardTheme {
         elevation: 0,
         centerTitle: false,
         titleTextStyle: TextStyle(
+          fontFamily: 'Roboto',
+          fontFamilyFallback: const ['NotoSymbols', 'NotoSymbols2', 'NotoEmoji'],
           color: palette.textPrimary,
           fontSize: 20,
           fontWeight: FontWeight.w700,
