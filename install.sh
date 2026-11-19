@@ -370,6 +370,15 @@ if [[ "$INSTALL_PLUGIN" -eq 1 && -d "$INSTALL_DIR/omarchy-plugin" ]]; then
 
   if command -v omarchy >/dev/null 2>&1; then
     if omarchy plugin validate "$PLUGIN_DEST" >/dev/null 2>&1; then
+      if command -v omarchy-shell >/dev/null 2>&1; then
+        omarchy-shell shell rescanPlugins >/dev/null 2>&1 || true
+        for _ in $(seq 1 20); do
+          if omarchy plugin list 2>/dev/null | grep -q "$PLUGIN_ID"; then
+            break
+          fi
+          sleep 0.1
+        done
+      fi
       omarchy plugin enable "$PLUGIN_ID" --before omarchy.agents >/dev/null 2>&1 \
         || omarchy plugin enable "$PLUGIN_ID" >/dev/null 2>&1 \
         || true
