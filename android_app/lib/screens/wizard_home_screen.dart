@@ -10,6 +10,7 @@ import '../widgets/status_pill.dart';
 import 'continuity_screen.dart';
 import 'desktop_screen.dart';
 import 'spellbook_screen.dart';
+import 'trackpad_screen.dart';
 
 class WizardHomeScreen extends StatefulWidget {
   const WizardHomeScreen({
@@ -58,6 +59,132 @@ class _WizardHomeScreenState extends State<WizardHomeScreen> {
     await widget.client.castSpell(text, conversationId: convId);
   }
 
+  void _openDesktop() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => DesktopScreen(
+          client: widget.client,
+          onOpenSettings: widget.onOpenSettings,
+        ),
+      ),
+    );
+  }
+
+  void _openTrackpad() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => TrackpadScreen(client: widget.client),
+      ),
+    );
+  }
+
+  void _openContinuity() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ContinuityScreen(client: widget.client),
+      ),
+    );
+  }
+
+  void _openSpellbook() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (ctx) => Scaffold(
+          appBar: AppBar(
+            title: const Text('Spellbook'),
+            backgroundColor: WizardColors.obsidian,
+          ),
+          body: SpellbookScreen(
+            client: widget.client,
+            onInspectInHome: () => Navigator.of(ctx).pop(),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openToolsMenu() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: WizardColors.surfaceCard,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'COMPANION TOOLS',
+                  style: TextStyle(
+                    color: WizardColors.textMuted,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.1,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                _ToolMenuTile(
+                  icon: Icons.desktop_windows_outlined,
+                  accent: WizardColors.cyanArcane,
+                  title: 'Remote Desktop',
+                  subtitle: 'View your Omarchy screen, zoom, click & type',
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    _openDesktop();
+                  },
+                ),
+                _ToolMenuTile(
+                  icon: Icons.touch_app_rounded,
+                  accent: WizardColors.violetArcane,
+                  title: 'Wireless Trackpad & Slides',
+                  subtitle: 'Low-latency mouse touchpad & presentation remote',
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    _openTrackpad();
+                  },
+                ),
+                _ToolMenuTile(
+                  icon: Icons.devices_rounded,
+                  accent: WizardColors.emeraldSage,
+                  title: 'Continuity & Notifications',
+                  subtitle: 'Mirror calls/messages, sync clipboard & open links',
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    _openContinuity();
+                  },
+                ),
+                _ToolMenuTile(
+                  icon: Icons.history_rounded,
+                  accent: WizardColors.goldStarlight,
+                  title: 'Spellbook History',
+                  subtitle: 'Browse past AI agent tasks, diffs & outputs',
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    _openSpellbook();
+                  },
+                ),
+                _ToolMenuTile(
+                  icon: Icons.tune_rounded,
+                  accent: WizardColors.textMuted,
+                  title: 'Pairing, Theme & Alerts',
+                  subtitle: 'QR / mDNS pairing, TLS, Omarchy theme & vitals shade',
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    widget.onOpenSettings();
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final client = widget.client;
@@ -71,107 +198,84 @@ class _WizardHomeScreenState extends State<WizardHomeScreen> {
       child: CustomScrollView(
         slivers: [
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
             sliver: SliverList(
               delegate: SliverChildListDelegate([
                 Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Omarchy Wizard',
-                            style: TextStyle(
-                              color: WizardColors.textPrimary,
-                              fontSize: 22,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: -0.4,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'Arcane AI Agent Controller',
-                            style: TextStyle(
-                              color: WizardColors.textMuted,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
+                    Flexible(
+                      child: StatusPill(
+                        state: client.connectionState,
+                        hostname: client.hostStatus.hostname,
+                        osVersion: client.hostStatus.osVersion,
+                        onTap: widget.onOpenSettings,
                       ),
                     ),
-                    IconButton(
-                      tooltip: 'Continuity & Notifications',
-                      visualDensity: VisualDensity.compact,
-                      onPressed: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => ContinuityScreen(client: client),
-                          ),
-                        );
-                      },
-                      icon: Icon(
-                        Icons.devices_rounded,
-                        color: WizardColors.emeraldSage,
+                    const SizedBox(width: 8),
+                    FilledButton.tonalIcon(
+                      onPressed: _openToolsMenu,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: WizardColors.surfaceElevated,
+                        foregroundColor: WizardColors.textPrimary,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        minimumSize: Size.zero,
                       ),
-                    ),
-                    IconButton(
-                      tooltip: 'Remote Desktop',
-                      visualDensity: VisualDensity.compact,
-                      onPressed: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => DesktopScreen(
-                              client: client,
-                              onOpenSettings: widget.onOpenSettings,
-                            ),
-                          ),
-                        );
-                      },
-                      icon: Icon(
-                        Icons.desktop_windows_outlined,
-                        color: WizardColors.cyanArcane,
+                      icon: const Icon(Icons.menu_rounded, size: 18),
+                      label: const Text(
+                        'Tools',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
                       ),
-                    ),
-                    IconButton(
-                      tooltip: 'Spellbook History',
-                      visualDensity: VisualDensity.compact,
-                      onPressed: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (ctx) => Scaffold(
-                              appBar: AppBar(
-                                title: const Text('Spellbook'),
-                                backgroundColor: WizardColors.obsidian,
-                              ),
-                              body: SpellbookScreen(
-                                client: client,
-                                onInspectInHome: () => Navigator.of(ctx).pop(),
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                      icon: Icon(
-                        Icons.menu_book_outlined,
-                        color: WizardColors.violetArcane,
-                      ),
-                    ),
-                    StatusPill(
-                      state: client.connectionState,
-                      hostname: client.hostStatus.hostname,
-                      osVersion: client.hostStatus.osVersion,
-                      onTap: widget.onOpenSettings,
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
                 Center(
                   child: ArcaneWizardMascot(
                     mood: client.mood,
                     quip: client.wizardQuip,
                     onTap: client.triggerWizardBoop,
                   ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _QuickToolTile(
+                        icon: Icons.desktop_windows_outlined,
+                        label: 'Desktop',
+                        accent: WizardColors.cyanArcane,
+                        onTap: _openDesktop,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _QuickToolTile(
+                        icon: Icons.touch_app_rounded,
+                        label: 'Trackpad',
+                        accent: WizardColors.violetArcane,
+                        onTap: _openTrackpad,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _QuickToolTile(
+                        icon: Icons.devices_rounded,
+                        label: 'Continuity',
+                        accent: WizardColors.emeraldSage,
+                        onTap: _openContinuity,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _QuickToolTile(
+                        icon: Icons.history_rounded,
+                        label: 'History',
+                        accent: WizardColors.goldStarlight,
+                        onTap: _openSpellbook,
+                      ),
+                    ),
+                  ],
                 ),
                 if (client.isRinging) ...[
                   const SizedBox(height: 10),
@@ -612,6 +716,103 @@ class _DropdownPill<T> extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _QuickToolTile extends StatelessWidget {
+  const _QuickToolTile({
+    required this.icon,
+    required this.label,
+    required this.accent,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color accent;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: WizardColors.surfaceCard,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: WizardColors.borderSubtle),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 20, color: accent),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: WizardColors.textPrimary,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ToolMenuTile extends StatelessWidget {
+  const _ToolMenuTile({
+    required this.icon,
+    required this.accent,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final Color accent;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      leading: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: accent.withValues(alpha: 0.14),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Icon(icon, color: accent, size: 20),
+      ),
+      title: Text(
+        title,
+        style: TextStyle(
+          color: WizardColors.textPrimary,
+          fontWeight: FontWeight.w700,
+          fontSize: 14,
+        ),
+      ),
+      subtitle: Text(
+        subtitle,
+        style: TextStyle(color: WizardColors.textMuted, fontSize: 12),
+      ),
+      trailing: Icon(Icons.chevron_right_rounded, color: WizardColors.textMuted),
+      onTap: onTap,
     );
   }
 }

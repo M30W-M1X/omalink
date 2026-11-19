@@ -16,7 +16,11 @@ void main() {
     await tester.pumpWidget(OmarchyWizardApp(client: client));
     await tester.pump();
 
-    expect(find.text('Omarchy Wizard'), findsOneWidget);
+    expect(find.text('Tools'), findsOneWidget);
+    expect(find.text('Desktop'), findsOneWidget);
+    expect(find.text('Trackpad'), findsOneWidget);
+    expect(find.text('Continuity'), findsOneWidget);
+    expect(find.text('History'), findsOneWidget);
     expect(client.mood, WizardMood.idle);
 
     // Tap the mascot to boop Arcane Agy
@@ -80,12 +84,12 @@ void main() {
     expect(find.text('CTRL'), findsOneWidget);
     expect(find.text('Pair Live'), findsOneWidget);
 
-    // Return to Wizard tab, scroll back to header, and open Remote Desktop screen
+    // Return to Wizard tab, scroll back to top, and open Remote Desktop via labeled tile
     await tester.tap(find.text('Wizard'));
     await tester.pump(const Duration(milliseconds: 250));
     await tester.drag(find.byType(CustomScrollView).first, const Offset(0, 600));
     await tester.pump(const Duration(milliseconds: 250));
-    await tester.tap(find.byTooltip('Remote Desktop'));
+    await tester.tap(find.text('Desktop'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
     expect(find.text('Omarchy Remote Desktop'), findsOneWidget);
@@ -95,10 +99,14 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 600));
     await tester.pump();
-    expect(find.text('Omarchy Wizard'), findsOneWidget);
+    expect(find.text('Tools'), findsOneWidget);
 
-    // Open Continuity & Notifications screen and verify controls
-    await tester.tap(find.byTooltip('Continuity & Notifications'));
+    // Open Tools menu sheet and tap Continuity & Notifications
+    await tester.tap(find.text('Tools'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('COMPANION TOOLS'), findsOneWidget);
+    await tester.tap(find.text('Continuity & Notifications'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 600));
     await tester.pump();
@@ -116,7 +124,7 @@ void main() {
     );
     expect(find.text('CONTINUE ON OMARCHY'), findsOneWidget);
 
-    // Pop Continuity, open Control -> Wireless Trackpad & Presentation Remote
+    // Pop Continuity, open Control -> Trackpad & Presentation Remote
     await tester.pageBack();
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 600));
@@ -125,12 +133,12 @@ void main() {
     await tester.tap(find.text('Control'));
     await tester.pump(const Duration(milliseconds: 250));
     await tester.scrollUntilVisible(
-      find.byTooltip('Wireless Trackpad & Slides'),
+      find.text('Trackpad'),
       -350,
       scrollable: find.byType(Scrollable).first,
     );
     await tester.pump(const Duration(milliseconds: 200));
-    await tester.tap(find.byTooltip('Wireless Trackpad & Slides'));
+    await tester.tap(find.text('Trackpad'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 600));
     await tester.pump();

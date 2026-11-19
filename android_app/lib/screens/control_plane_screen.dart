@@ -204,48 +204,6 @@ class _ControlPlaneScreenState extends State<ControlPlaneScreen> {
                   ),
                 ),
                 IconButton(
-                  tooltip: 'Wireless Trackpad & Slides',
-                  visualDensity: VisualDensity.compact,
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => TrackpadScreen(client: client),
-                      ),
-                    );
-                  },
-                  icon: Icon(Icons.touch_app_rounded, color: WizardColors.violetArcane),
-                ),
-                IconButton(
-                  tooltip: 'Continuity & Phone Relay',
-                  visualDensity: VisualDensity.compact,
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => ContinuityScreen(client: client),
-                      ),
-                    );
-                  },
-                  icon: Icon(Icons.devices_rounded, color: WizardColors.emeraldSage),
-                ),
-                FilledButton.tonalIcon(
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => DesktopScreen(client: client),
-                      ),
-                    );
-                  },
-                  style: FilledButton.styleFrom(
-                    backgroundColor: WizardColors.surfaceElevated,
-                    foregroundColor: WizardColors.cyanArcane,
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    minimumSize: Size.zero,
-                  ),
-                  icon: const Icon(Icons.desktop_windows_outlined, size: 16),
-                  label: const Text('Desktop', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-                ),
-                const SizedBox(width: 4),
-                IconButton(
                   tooltip: 'Refresh OS State',
                   onPressed: client.systemLoading ? null : client.refreshSystemState,
                   icon: client.systemLoading
@@ -255,6 +213,82 @@ class _ControlPlaneScreenState extends State<ControlPlaneScreen> {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : Icon(Icons.refresh_rounded, color: WizardColors.cyanArcane),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton.tonalIcon(
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => DesktopScreen(client: client),
+                        ),
+                      );
+                    },
+                    style: FilledButton.styleFrom(
+                      backgroundColor: WizardColors.surfaceCard,
+                      foregroundColor: WizardColors.cyanArcane,
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
+                    ),
+                    icon: const Icon(Icons.desktop_windows_outlined, size: 16),
+                    label: const Text(
+                      'Desktop',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: FilledButton.tonalIcon(
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => TrackpadScreen(client: client),
+                        ),
+                      );
+                    },
+                    style: FilledButton.styleFrom(
+                      backgroundColor: WizardColors.surfaceCard,
+                      foregroundColor: WizardColors.violetArcane,
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
+                    ),
+                    icon: const Icon(Icons.touch_app_rounded, size: 16),
+                    label: const Text(
+                      'Trackpad',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: FilledButton.tonalIcon(
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => ContinuityScreen(client: client),
+                        ),
+                      );
+                    },
+                    style: FilledButton.styleFrom(
+                      backgroundColor: WizardColors.surfaceCard,
+                      foregroundColor: WizardColors.emeraldSage,
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
+                    ),
+                    icon: const Icon(Icons.devices_rounded, size: 16),
+                    label: const Text(
+                      'Continuity',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                    ),
+                  ),
                 ),
               ],
             ),
