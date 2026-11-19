@@ -356,17 +356,19 @@ fi
 
 # 3. Install Omarchy top-bar plugin (omalink.panel) & retire legacy wizard.panel
 PLUGIN_STATUS="skipped"
-if [[ "$INSTALL_PLUGIN" -eq 1 && -d "$INSTALL_DIR/omarchy-plugin" ]]; then
+if [[ "$INSTALL_PLUGIN" -eq 1 && -f "$INSTALL_DIR/manifest.json" && -d "$INSTALL_DIR/omarchy-plugin" ]]; then
   log "Installing OmaLink top-bar plugin to $PLUGIN_DEST..."
   if command -v omarchy >/dev/null 2>&1; then
     omarchy plugin disable "$LEGACY_PLUGIN_ID" >/dev/null 2>&1 || true
   fi
   rm -rf "$LEGACY_PLUGIN_DEST"
 
-  mkdir -p "$(dirname "$PLUGIN_DEST")"
+  mkdir -p "$PLUGIN_DEST"
   rm -rf "$PLUGIN_DEST"
-  cp -r "$INSTALL_DIR/omarchy-plugin" "$PLUGIN_DEST"
-  chmod +x "$PLUGIN_DEST/status.py" || true
+  mkdir -p "$PLUGIN_DEST"
+  cp "$INSTALL_DIR/manifest.json" "$PLUGIN_DEST/manifest.json"
+  cp -r "$INSTALL_DIR/omarchy-plugin" "$PLUGIN_DEST/omarchy-plugin"
+  chmod +x "$PLUGIN_DEST/omarchy-plugin/status.py" || true
 
   if command -v omarchy >/dev/null 2>&1; then
     if omarchy plugin validate "$PLUGIN_DEST" >/dev/null 2>&1; then

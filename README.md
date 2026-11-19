@@ -108,6 +108,26 @@ No Python pip dependencies are required — the bridge runs on **Python 3.11+ st
 
 ---
 
+## Uninstall / Removal
+
+If installed via `omarchy plugin add`:
+
+```bash
+omarchy plugin remove omalink.panel
+systemctl --user disable --now omalink-bridge.service
+rm -f ~/.config/systemd/user/omalink-bridge.service
+systemctl --user daemon-reload
+```
+
+Or using the included uninstaller:
+
+```bash
+./install.sh --uninstall        # keeps ~/.config/omalink token
+./install.sh --uninstall --purge # also deletes ~/.config/omalink
+```
+
+---
+
 ## Development & Testing
 
 ### Bridge Tests (Python 3.11+)
