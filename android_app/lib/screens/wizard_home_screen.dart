@@ -4,6 +4,7 @@ import '../models/agent_task.dart';
 import '../services/bridge_client.dart';
 import '../theme/wizard_theme.dart';
 import '../widgets/arcane_wizard_mascot.dart';
+import '../widgets/avatar_picker_panel.dart';
 import '../widgets/quick_cast_bar.dart';
 import '../widgets/spell_log_view.dart';
 import '../widgets/status_pill.dart';
@@ -168,6 +169,16 @@ class _WizardHomeScreenState extends State<WizardHomeScreen> {
                   },
                 ),
                 _ToolMenuTile(
+                  icon: Icons.auto_awesome_rounded,
+                  accent: WizardColors.violetArcane,
+                  title: 'Mascot Avatar & App Icon',
+                  subtitle: 'Switch animated avatar (Anime Wizard, Cat, Mage, Owl)',
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    _openAvatarPicker();
+                  },
+                ),
+                _ToolMenuTile(
                   icon: Icons.tune_rounded,
                   accent: WizardColors.textMuted,
                   title: 'Pairing, Theme & Alerts',
@@ -178,6 +189,26 @@ class _WizardHomeScreenState extends State<WizardHomeScreen> {
                   },
                 ),
               ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _openAvatarPicker() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: WizardColors.surfaceCard,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
+            child: AnimatedBuilder(
+              animation: widget.client,
+              builder: (_, __) => AvatarPickerPanel(client: widget.client),
             ),
           ),
         );
@@ -234,7 +265,9 @@ class _WizardHomeScreenState extends State<WizardHomeScreen> {
                   child: ArcaneWizardMascot(
                     mood: client.mood,
                     quip: client.wizardQuip,
+                    avatarStyle: client.avatarStyle,
                     onTap: client.triggerWizardBoop,
+                    onLongPress: _openAvatarPicker,
                   ),
                 ),
                 const SizedBox(height: 12),

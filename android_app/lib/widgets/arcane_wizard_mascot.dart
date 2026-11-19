@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:material_ui/material_ui.dart';
 
+import '../models/wizard_avatar.dart';
 import '../models/wizard_mood.dart';
 import '../theme/wizard_theme.dart';
 
@@ -10,13 +11,17 @@ class ArcaneWizardMascot extends StatefulWidget {
     super.key,
     required this.mood,
     required this.quip,
+    this.avatarStyle = WizardAvatarStyle.classic,
     this.onTap,
+    this.onLongPress,
     this.size = 210,
   });
 
   final WizardMood mood;
   final String quip;
+  final WizardAvatarStyle avatarStyle;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
   final double size;
 
   @override
@@ -95,6 +100,7 @@ class _ArcaneWizardMascotState extends State<ArcaneWizardMascot>
       children: [
         GestureDetector(
           onTap: _handleTap,
+          onLongPress: widget.onLongPress,
           behavior: HitTestBehavior.opaque,
           child: SizedBox(
             width: widget.size,
@@ -107,15 +113,22 @@ class _ArcaneWizardMascotState extends State<ArcaneWizardMascot>
                 _burstController,
               ]),
               builder: (context, _) {
-                return CustomPaint(
-                  painter: _WizardPainter(
-                    mood: widget.mood,
-                    floatPhase: _floatController.value,
-                    orbitPhase: _orbitController.value,
-                    blinkPhase: _blinkController.value,
-                    burstPhase: _burstController.value,
-                    accent: accent,
-                  ),
+                final assetPath = widget.avatarStyle.assetPath;
+                if (assetPath == null) {
+                  return CustomPaint(
+                    painter: _WizardPainter(
+                      mood: widget.mood,
+                      floatPhase: _floatController.value,
+                      orbitPhase: _orbitController.value,
+                      blinkPhase: _blinkController.value,
+                      burstPhase: _burstController.value,
+                      accent: accent,
+                    ),
+                  );
+                }
+                return _buildAnimatedIllustratedAvatar(
+                  assetPath: assetPath,
+                  accent: accent,
                 );
               },
             ),
@@ -168,6 +181,132 @@ class _ArcaneWizardMascotState extends State<ArcaneWizardMascot>
                   ),
                 ),
               ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAnimatedIllustratedAvatar({
+    required String assetPath,
+    required Color accent,
+  }) {
+    final floatAngle = _floatController.value * 2 * math.pi;
+    final orbitAngle = _orbitController.value * 2 * math.pi;
+    final burst = _burstController.value;
+    final burstArc = burst > 0 && burst < 1 ? math.sin(burst * math.pi) : 0.0;
+
+    final isCasting = widget.mood == WizardMood.casting;
+    final isCelebrating = widget.mood == WizardMood.celebrating;
+    final isError = widget.mood == WizardMood.error;
+
+    // Organic floating bob + boop spring hop
+    final bobAmp = isCasting ? 6.5 : (isCelebrating ? 8.0 : 4.5);
+    final dy = math.sin(floatAngle) * bobAmp - burstArc * 14.0;
+    final dx = isError ? math.sin(orbitAngle * 6) * 3.2 : 0.0;
+
+    // Expressive tilt & living squash-and-stretch breathing
+    final tilt = isCelebrating
+        ? math.sin(floatAngle * 2) * 0.075
+        : (isCasting
+            ? math.sin(orbitAngle) * 0.055
+            : math.sin(floatAngle) * 0.032) +
+            burstArc * math.sin(burst * math.pi * 3) * 0.08;
+    final breath = math.sin(floatAngle) * (isCasting ? 0.028 : 0.018);
+    final scaleX = 1.0 - breath + burstArc * 0.075;
+    final scaleY = 1.0 + breath + burstArc * 0.045;
+
+    final portraitSize = widget.size * 0.74;
+    final shimmerPos = (_orbitController.value * 2.2) - 0.6;
+
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        // 1. Back glowing arcane halo & rotating rune ring
+        Positioned.fill(
+          child: CustomPaint(
+            painter: _AvatarAuraBackPainter(
+              mood: widget.mood,
+              floatPhase: _floatController.value,
+              orbitPhase: _orbitController.value,
+              burstPhase: burst,
+              accent: accent,
+            ),
+          ),
+        ),
+        // 2. Living floating/breathing/tilting portrait medallion
+        Transform.translate(
+          offset: Offset(dx, dy),
+          child: Transform.rotate(
+            angle: tilt,
+            child: Transform.scale(
+              scaleX: scaleX,
+              scaleY: scaleY,
+              child: Container(
+                width: portraitSize,
+                height: portraitSize,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: accent.withValues(alpha: isCasting ? 0.45 : 0.28),
+                      blurRadius: isCasting ? 26 : 18,
+                      spreadRadius: isCasting ? 2 : 0,
+                    ),
+                  ],
+                  border: Border.all(
+                    color: accent.withValues(alpha: 0.65 + burstArc * 0.35),
+                    width: 2.4,
+                  ),
+                ),
+                child: ClipOval(
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      Image.asset(
+                        assetPath,
+                        fit: BoxFit.cover,
+                        filterQuality: FilterQuality.high,
+                      ),
+                      // Animated diagonal magic sheen sweep
+                      if (isCasting || isCelebrating || burstArc > 0.02)
+                        IgnorePointer(
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment(shimmerPos - 0.6, -1.0),
+                                end: Alignment(shimmerPos + 0.6, 1.0),
+                                colors: [
+                                  Colors.transparent,
+                                  accent.withValues(alpha: isCasting ? 0.22 : 0.16),
+                                  Colors.white.withValues(alpha: 0.16),
+                                  Colors.transparent,
+                                ],
+                                stops: const [0.0, 0.45, 0.52, 1.0],
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+        // 3. Foreground orbiting starlight sparkles, rising mana & boop burst FX
+        Positioned.fill(
+          child: IgnorePointer(
+            child: CustomPaint(
+              painter: _AvatarFxFrontPainter(
+                mood: widget.mood,
+                floatPhase: _floatController.value,
+                orbitPhase: _orbitController.value,
+                blinkPhase: _blinkController.value,
+                burstPhase: burst,
+                accent: accent,
+              ),
             ),
           ),
         ),
@@ -708,5 +847,247 @@ class _WizardPainter extends CustomPainter {
         oldDelegate.blinkPhase != blinkPhase ||
         oldDelegate.burstPhase != burstPhase ||
         oldDelegate.accent != accent;
+  }
+}
+
+class _AvatarAuraBackPainter extends CustomPainter {
+  _AvatarAuraBackPainter({
+    required this.mood,
+    required this.floatPhase,
+    required this.orbitPhase,
+    required this.burstPhase,
+    required this.accent,
+  });
+
+  final WizardMood mood;
+  final double floatPhase;
+  final double orbitPhase;
+  final double burstPhase;
+  final Color accent;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final baseR = size.width * 0.43;
+    final pulse = 0.5 + 0.5 * math.sin(floatPhase * 2 * math.pi);
+    final burst = burstPhase > 0 && burstPhase < 1 ? math.sin(burstPhase * math.pi) : 0.0;
+
+    // 1. Soft breathing radial glow behind the avatar medallion
+    final glowR = baseR * (1.06 + pulse * 0.07 + burst * 0.14);
+    final haloPaint = Paint()
+      ..shader = RadialGradient(
+        colors: [
+          accent.withValues(alpha: mood == WizardMood.casting ? 0.34 : 0.22),
+          WizardColors.violetArcane.withValues(alpha: 0.10),
+          Colors.transparent,
+        ],
+        stops: const [0.35, 0.72, 1.0],
+      ).createShader(Rect.fromCircle(center: center, radius: glowR));
+    canvas.drawCircle(center, glowR, haloPaint);
+
+    // 2. Rotating segmented arcane magic ring
+    final ringR = baseR * (0.98 + pulse * 0.02);
+    final ringPaint = Paint()
+      ..color = accent.withValues(alpha: mood == WizardMood.casting ? 0.62 : 0.34)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = mood == WizardMood.casting ? 2.0 : 1.4
+      ..strokeCap = StrokeCap.round;
+
+    final baseAngle = orbitPhase * 2 * math.pi;
+    const segments = 6;
+    for (int i = 0; i < segments; i++) {
+      final start = baseAngle + (i * 2 * math.pi / segments);
+      const sweep = math.pi / 7;
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: ringR),
+        start,
+        sweep,
+        false,
+        ringPaint,
+      );
+    }
+
+    // 3. Counter-rotating thin outer orbital track
+    final outerR = baseR * 1.07;
+    final outerPaint = Paint()
+      ..color = WizardColors.goldStarlight.withValues(alpha: 0.22 + pulse * 0.14)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0;
+    for (int i = 0; i < 3; i++) {
+      final start = -baseAngle * 0.7 + (i * 2 * math.pi / 3);
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: outerR),
+        start,
+        math.pi / 5,
+        false,
+        outerPaint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _AvatarAuraBackPainter oldDelegate) {
+    return oldDelegate.mood != mood ||
+        oldDelegate.floatPhase != floatPhase ||
+        oldDelegate.orbitPhase != orbitPhase ||
+        oldDelegate.burstPhase != burstPhase ||
+        oldDelegate.accent != accent;
+  }
+}
+
+class _AvatarFxFrontPainter extends CustomPainter {
+  _AvatarFxFrontPainter({
+    required this.mood,
+    required this.floatPhase,
+    required this.orbitPhase,
+    required this.blinkPhase,
+    required this.burstPhase,
+    required this.accent,
+  });
+
+  final WizardMood mood;
+  final double floatPhase;
+  final double orbitPhase;
+  final double blinkPhase;
+  final double burstPhase;
+  final Color accent;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final r = size.width * 0.44;
+    final isCasting = mood == WizardMood.casting;
+    final isCelebrating = mood == WizardMood.celebrating;
+
+    // 1. Orbiting starlight sparkles around the portrait edge
+    final count = isCasting ? 7 : 5;
+    for (int i = 0; i < count; i++) {
+      final speed = isCasting ? 2.0 : 1.0;
+      final theta = orbitPhase * 2 * math.pi * speed + (i * 2 * math.pi / count);
+      final wobble = math.sin(floatPhase * 2 * math.pi + i * 1.3) * 5.0;
+      final px = center.dx + math.cos(theta) * (r + wobble);
+      final py = center.dy + math.sin(theta) * (r * 0.92 + wobble);
+      final twinkle = 0.45 + 0.55 * math.sin(blinkPhase * 2 * math.pi * 2 + i * 1.7).abs();
+      final starColor = i.isEven ? accent : WizardColors.goldStarlight;
+      _drawStar(
+        canvas,
+        Offset(px, py),
+        (isCasting ? 6.5 : 5.0) * twinkle,
+        starColor.withValues(alpha: 0.9 * twinkle),
+      );
+    }
+
+    // 2. Rising mana motes during casting / celebrating
+    if (isCasting || isCelebrating) {
+      for (int i = 0; i < 6; i++) {
+        final progress = (orbitPhase + i / 6.0) % 1.0;
+        final xSpread = math.sin(i * 2.1 + floatPhase * math.pi) * (size.width * 0.34);
+        final yPos = center.dy + size.height * 0.32 - progress * (size.height * 0.68);
+        final fade = math.sin(progress * math.pi);
+        canvas.drawCircle(
+          Offset(center.dx + xSpread, yPos),
+          2.6 * fade + 1.0,
+          Paint()..color = (i.isEven ? accent : WizardColors.goldStarlight).withValues(alpha: 0.75 * fade),
+        );
+      }
+    }
+
+    // 3. Boop / celebration burst ring + radiating stars
+    if (burstPhase > 0 && burstPhase < 1) {
+      final fade = (1.0 - burstPhase).clamp(0.0, 1.0);
+      final burstR = size.width * (0.36 + burstPhase * 0.16);
+      canvas.drawCircle(
+        center,
+        burstR,
+        Paint()
+          ..color = accent.withValues(alpha: 0.55 * fade)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.4 * fade,
+      );
+      for (int i = 0; i < 8; i++) {
+        final angle = i * (math.pi / 4) + burstPhase * 0.5;
+        final starPos = Offset(
+          center.dx + math.cos(angle) * (burstR + 4),
+          center.dy + math.sin(angle) * (burstR + 4),
+        );
+        _drawStar(
+          canvas,
+          starPos,
+          7.0 * fade,
+          (i.isEven ? WizardColors.goldStarlight : accent).withValues(alpha: fade),
+        );
+      }
+    }
+  }
+
+  void _drawStar(Canvas canvas, Offset c, double radius, Color color) {
+    if (radius <= 0.4) return;
+    final path = Path()
+      ..moveTo(c.dx, c.dy - radius)
+      ..quadraticBezierTo(c.dx, c.dy, c.dx + radius, c.dy)
+      ..quadraticBezierTo(c.dx, c.dy, c.dx, c.dy + radius)
+      ..quadraticBezierTo(c.dx, c.dy, c.dx - radius, c.dy)
+      ..quadraticBezierTo(c.dx, c.dy, c.dx, c.dy - radius)
+      ..close();
+    canvas.drawPath(path, Paint()..color = color);
+  }
+
+  @override
+  bool shouldRepaint(covariant _AvatarFxFrontPainter oldDelegate) {
+    return oldDelegate.mood != mood ||
+        oldDelegate.floatPhase != floatPhase ||
+        oldDelegate.orbitPhase != orbitPhase ||
+        oldDelegate.blinkPhase != blinkPhase ||
+        oldDelegate.burstPhase != burstPhase ||
+        oldDelegate.accent != accent;
+  }
+}
+
+/// Compact circular preview thumbnail for any [WizardAvatarStyle].
+class WizardAvatarThumbnail extends StatelessWidget {
+  const WizardAvatarThumbnail({
+    super.key,
+    required this.style,
+    this.size = 56,
+  });
+
+  final WizardAvatarStyle style;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final asset = style.assetPath;
+    if (asset != null) {
+      return ClipOval(
+        child: Image.asset(
+          asset,
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+          filterQuality: FilterQuality.medium,
+        ),
+      );
+    }
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: WizardColors.midnight,
+      ),
+      child: ClipOval(
+        child: CustomPaint(
+          size: Size.square(size),
+          painter: _WizardPainter(
+            mood: WizardMood.idle,
+            floatPhase: 0.25,
+            orbitPhase: 0.2,
+            blinkPhase: 0.1,
+            burstPhase: 0,
+            accent: WizardColors.cyanArcane,
+          ),
+        ),
+      ),
+    );
   }
 }

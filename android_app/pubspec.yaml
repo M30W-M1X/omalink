@@ -1,7 +1,7 @@
 name: omarchy_wizard
 description: Cute animated Wizard Android controller for AI Agents running on Omarchy.
 publish_to: 'none'
-version: 2.2.0+11
+version: 2.3.0+12
 
 environment:
   sdk: '>=3.4.0 <4.0.0'
@@ -24,3 +24,5 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/avatars/

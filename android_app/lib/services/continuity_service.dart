@@ -186,6 +186,28 @@ class ContinuityService {
     }
   }
 
+  Future<bool> setLauncherIcon(String iconId) async {
+    if (!Platform.isAndroid) return true;
+    try {
+      final ok = await _method.invokeMethod<bool>('setLauncherIcon', {
+        'iconId': iconId,
+      });
+      return ok ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<String> getLauncherIcon() async {
+    if (!Platform.isAndroid) return 'classic';
+    try {
+      final id = await _method.invokeMethod<String>('getLauncherIcon');
+      return (id != null && id.isNotEmpty) ? id : 'classic';
+    } catch (_) {
+      return 'classic';
+    }
+  }
+
   void startListening({
     required void Function(ContinuitySharePayload share) onShare,
     required void Function(ContinuityFileSharePayload fileShare) onFileShare,

@@ -5,6 +5,7 @@ import '../services/bridge_client.dart';
 import '../services/continuity_service.dart';
 import '../services/notification_service.dart';
 import '../theme/wizard_theme.dart';
+import '../widgets/avatar_picker_panel.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({
@@ -525,6 +526,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ],
               ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: AvatarPickerPanel(client: widget.client),
             ),
           ),
           const SizedBox(height: 12),

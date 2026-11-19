@@ -19,6 +19,8 @@ class WizardSettings {
     this.tlsFingerprint = '',
     this.tailscaleHost = '',
     this.vitalsNotification = true,
+    this.avatarStyle = 'classic',
+    this.launcherIcon = 'classic',
   });
 
   final String host;
@@ -38,6 +40,8 @@ class WizardSettings {
   final String tlsFingerprint;
   final String tailscaleHost;
   final bool vitalsNotification;
+  final String avatarStyle;
+  final String launcherIcon;
 
   String get httpScheme => useTls ? 'https' : 'http';
   String get wsScheme => useTls ? 'wss' : 'ws';
@@ -65,6 +69,8 @@ class WizardSettings {
     String? tlsFingerprint,
     String? tailscaleHost,
     bool? vitalsNotification,
+    String? avatarStyle,
+    String? launcherIcon,
   }) {
     return WizardSettings(
       host: host ?? this.host,
@@ -84,6 +90,8 @@ class WizardSettings {
       tlsFingerprint: tlsFingerprint ?? this.tlsFingerprint,
       tailscaleHost: tailscaleHost ?? this.tailscaleHost,
       vitalsNotification: vitalsNotification ?? this.vitalsNotification,
+      avatarStyle: avatarStyle ?? this.avatarStyle,
+      launcherIcon: launcherIcon ?? this.launcherIcon,
     );
   }
 }
@@ -106,6 +114,8 @@ class SettingsStore {
   static const _keyTlsFp = 'wizard_tls_fingerprint';
   static const _keyTailscaleHost = 'wizard_tailscale_host';
   static const _keyVitalsNotif = 'wizard_vitals_notification';
+  static const _keyAvatarStyle = 'wizard_avatar_style';
+  static const _keyLauncherIcon = 'wizard_launcher_icon';
 
   Future<WizardSettings> load() async {
     final prefs = await SharedPreferences.getInstance();
@@ -127,6 +137,8 @@ class SettingsStore {
       tlsFingerprint: prefs.getString(_keyTlsFp) ?? '',
       tailscaleHost: prefs.getString(_keyTailscaleHost) ?? '',
       vitalsNotification: prefs.getBool(_keyVitalsNotif) ?? true,
+      avatarStyle: prefs.getString(_keyAvatarStyle) ?? 'classic',
+      launcherIcon: prefs.getString(_keyLauncherIcon) ?? 'classic',
     );
   }
 
@@ -149,5 +161,7 @@ class SettingsStore {
     await prefs.setString(_keyTlsFp, settings.tlsFingerprint);
     await prefs.setString(_keyTailscaleHost, settings.tailscaleHost);
     await prefs.setBool(_keyVitalsNotif, settings.vitalsNotification);
+    await prefs.setString(_keyAvatarStyle, settings.avatarStyle);
+    await prefs.setString(_keyLauncherIcon, settings.launcherIcon);
   }
 }

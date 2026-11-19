@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:omarchy_wizard/main.dart';
+import 'package:omarchy_wizard/models/wizard_avatar.dart';
 import 'package:omarchy_wizard/models/wizard_mood.dart';
 import 'package:omarchy_wizard/services/bridge_client.dart';
 import 'package:omarchy_wizard/widgets/arcane_wizard_mascot.dart';
@@ -100,6 +101,25 @@ void main() {
     await tester.pump(const Duration(milliseconds: 600));
     await tester.pump();
     expect(find.text('Tools'), findsOneWidget);
+
+    // Open Tools -> Mascot Avatar & App Icon, switch to Anime Wizard, and apply icon
+    await tester.tap(find.text('Tools'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('Mascot Avatar & App Icon'), findsOneWidget);
+    await tester.tap(find.text('Mascot Avatar & App Icon'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('Anime Wizard'), findsOneWidget);
+    await tester.tap(find.text('Anime Wizard'));
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(client.avatarStyle, WizardAvatarStyle.animeGirl);
+    await tester.tap(find.text('Set "Anime Wizard" as App Icon'));
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(client.launcherIcon, WizardAvatarStyle.animeGirl);
+    await tester.tapAt(const Offset(10, 10));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
 
     // Open Tools menu sheet and tap Continuity & Notifications
     await tester.tap(find.text('Tools'));

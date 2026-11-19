@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 
 import '../models/agent_task.dart';
 import '../models/system_control.dart';
+import '../models/wizard_avatar.dart';
 import '../models/wizard_mood.dart';
 import '../theme/wizard_theme.dart';
 import 'continuity_service.dart';
@@ -183,6 +184,25 @@ class BridgeClient extends ChangeNotifier {
   WizardPalette get activePalette => _settings.syncOmarchyTheme
       ? _desktopPalette
       : WizardPalette.byName(_settings.themeOverride);
+
+  WizardAvatarStyle get avatarStyle => WizardAvatarStyle.fromId(_settings.avatarStyle);
+  WizardAvatarStyle get launcherIcon => WizardAvatarStyle.fromId(_settings.launcherIcon);
+
+  Future<void> setAvatarStyle(WizardAvatarStyle style) async {
+    _settings = _settings.copyWith(avatarStyle: style.id);
+    await _settingsStore.save(_settings);
+    notifyListeners();
+  }
+
+  Future<bool> setLauncherIcon(WizardAvatarStyle style) async {
+    final ok = await ContinuityService.instance.setLauncherIcon(style.id);
+    if (ok) {
+      _settings = _settings.copyWith(launcherIcon: style.id);
+      await _settingsStore.save(_settings);
+      notifyListeners();
+    }
+    return ok;
+  }
 
   void _syncActiveColors() {
     WizardColors.apply(activePalette);

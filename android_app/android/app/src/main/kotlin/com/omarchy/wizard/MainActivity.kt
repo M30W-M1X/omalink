@@ -5,6 +5,7 @@ import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.media.RingtoneManager
@@ -35,6 +36,13 @@ class MainActivity : FlutterActivity() {
         private const val METHOD_CHANNEL = "com.omarchy.wizard/continuity"
         private const val EVENT_CHANNEL = "com.omarchy.wizard/continuity_events"
         private const val MAX_SHARE_BYTES = 25 * 1024 * 1024
+        private val LAUNCHER_ALIASES = linkedMapOf(
+            "classic" to "com.omarchy.wizard.LauncherDefault",
+            "anime_girl" to "com.omarchy.wizard.LauncherAnimeGirl",
+            "arcane_cat" to "com.omarchy.wizard.LauncherArcaneCat",
+            "cyber_mage" to "com.omarchy.wizard.LauncherCyberMage",
+            "astral_spirit" to "com.omarchy.wizard.LauncherAstralSpirit",
+        )
     }
 
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -120,6 +128,13 @@ class MainActivity : FlutterActivity() {
                                 mainHandler.post { result.success(savedPath) }
                             }
                         }
+                    }
+                    "setLauncherIcon" -> {
+                        val iconId = call.argument<String>("iconId") ?: "classic"
+                        result.success(applyLauncherIcon(iconId))
+                    }
+                    "getLauncherIcon" -> {
+                        result.success(currentLauncherIcon())
                     }
                     else -> result.notImplemented()
                 }
@@ -389,6 +404,43 @@ class MainActivity : FlutterActivity() {
             mainHandler.post { eventSink?.success(payload) }
         } else {
             pendingShare = payload
+        }
+    }
+
+    private fun currentLauncherIcon(): String {
+        val pm = applicationContext.packageManager
+        for ((id, className) in LAUNCHER_ALIASES) {
+            val state = pm.getComponentEnabledSetting(ComponentName(packageName, className))
+            if (state == PackageManager.COMPONENT_ENABLED_STATE_ENABLED) {
+                return id
+            }
+        }
+        return "classic"
+    }
+
+    private fun applyLauncherIcon(iconId: String): Boolean {
+        val targetKey = if (LAUNCHER_ALIASES.containsKey(iconId)) iconId else "classic"
+        val targetClass = LAUNCHER_ALIASES[targetKey] ?: return false
+        return try {
+            val pm = applicationContext.packageManager
+            // Enable the target alias FIRST so the app always retains an active LAUNCHER entry
+            pm.setComponentEnabledSetting(
+                ComponentName(packageName, targetClass),
+                PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                PackageManager.DONT_KILL_APP,
+            )
+            for ((id, className) in LAUNCHER_ALIASES) {
+                if (id != targetKey) {
+                    pm.setComponentEnabledSetting(
+                        ComponentName(packageName, className),
+                        PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                        PackageManager.DONT_KILL_APP,
+                    )
+                }
+            }
+            true
+        } catch (_: Exception) {
+            false
         }
     }
 

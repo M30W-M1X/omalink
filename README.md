@@ -8,9 +8,9 @@ A **Flutter Android companion app**, zero-dependency **Python Omarchy Bridge**, 
 
 ## Screenshots
 
-| Wizard Home & Mascot | Companion Tools Menu | Omarchy Control Plane |
-| :---: | :---: | :---: |
-| <img src="docs/screenshots/01_home_wizard.png" width="240" alt="Wizard Home screen with Arcane Agy mascot, labeled quick tiles, AI usage, and spell parameters" /> | <img src="docs/screenshots/02_tools_menu.png" width="240" alt="Material 3 Companion Tools bottom sheet" /> | <img src="docs/screenshots/04_control_plane.png" width="240" alt="Omarchy Control Plane with vitals, PipeWire audio, Spotify media controls, and output sinks" /> |
+| Wizard Home & Mascot | Animated Avatars & App Icons | Companion Tools Menu | Omarchy Control Plane |
+| :---: | :---: | :---: | :---: |
+| <img src="docs/screenshots/01_home_wizard.png" width="200" alt="Wizard Home screen with Arcane Agy mascot, labeled quick tiles, AI usage, and spell parameters" /> | <img src="docs/screenshots/08_avatar_picker.png" width="200" alt="Animated Anime Wizard mascot and switchable Android app icon picker" /> | <img src="docs/screenshots/02_tools_menu.png" width="200" alt="Material 3 Companion Tools bottom sheet" /> | <img src="docs/screenshots/04_control_plane.png" width="200" alt="Omarchy Control Plane with vitals, PipeWire audio, Spotify media controls, and output sinks" /> |
 
 | Continuity & Notifications | Wireless Trackpad & Slides | Interactive Terminal | Sanctum & Pairing |
 | :---: | :---: | :---: | :---: |
@@ -71,7 +71,7 @@ No Python pip dependencies are required — the bridge runs on **Python 3.11+ st
 - **AI Agent Remote Controller & Mascot (`Arcane Agy`)**
   - Launch, monitor, stream, cancel, and resume sessions for `agy`, `claude`, `codex`, `kimi`, and `opencode`.
   - Live AI usage & quota overview right on the home screen + high-importance Android alerts when a task finishes or fails.
-  - Animated `CustomPainter` wizard mascot that reacts to every state (`idle`, `listening`, `casting`, `awaitingApproval`, `celebrating`, `error`).
+  - Animated `CustomPainter` wizard mascot (**Arcane Agy**) plus 4 switchable **animated illustrated avatars** (**Anime Wizard**, **Arcane Cat**, **Cyber-Mage**, **Astral Owl**) with floating/breathing motion, rotating arcane rune rings, starlight sparkles, and mood-reactive spells (`idle`, `listening`, `casting`, `awaitingApproval`, `celebrating`, `error`) — any of which can also be applied live as your **Android Home Screen App Icon**!
 - **Silent Notification-Shade Vitals & Agy Limits**
   - Optional silent, ongoing Android notification card pinned to your notification shade showing live **CPU, RAM, Temp, Uptime**, and **Agy usage limits** at a glance without ever chiming or vibrating.
 - **Live Omarchy Theme Sync**
