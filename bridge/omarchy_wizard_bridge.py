@@ -1428,6 +1428,26 @@ class OmarchyWizardBridge:
             )
             return
 
+        if method == "POST" and path == "/api/continuity/push-clipboard":
+            clip = await omarchy_continuity.get_clipboard()
+            text = str(clip.get("text", ""))
+            history = await asyncio.to_thread(omarchy_continuity.read_clipboard_history_sync, 15)
+            if not text and history:
+                text = str(history[0])
+            if not text:
+                await self._send_http_json(
+                    writer, HTTPStatus.BAD_REQUEST, {"ok": False, "error": "Desktop clipboard is empty"}
+                )
+                return
+            await self.broadcast(
+                "continuity.clipboard_update",
+                {"text": text, "history": history, "force": True},
+            )
+            await self._send_http_json(
+                writer, HTTPStatus.OK, {"ok": True, "length": len(text)}
+            )
+            return
+
         if method == "POST" and path == "/api/continuity/notify":
             title = str(body.get("title", "")).strip()
             msg_body = str(body.get("body", "")).strip()

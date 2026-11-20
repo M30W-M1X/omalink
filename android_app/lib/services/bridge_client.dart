@@ -757,15 +757,18 @@ class BridgeClient extends ChangeNotifier {
           break;
         case 'continuity.clipboard_update':
           final txt = data['text']?.toString() ?? '';
+          final forceSync = data['force'] == true;
           final rawHist = data['history'] as List<dynamic>?;
           if (rawHist != null) {
             _desktopClipboardHistory = rawHist.map((e) => e.toString()).toList();
           }
           if (txt.isNotEmpty) {
             _desktopClipboardPreview = txt;
-            if (_settings.autoSyncClipboard) {
+            if (_settings.autoSyncClipboard || forceSync) {
               unawaited(Clipboard.setData(ClipboardData(text: txt)));
-              _continuityBanner = 'Auto-synced desktop clipboard to phone';
+              _continuityBanner = forceSync
+                  ? '📋 Received clipboard from Omarchy top bar'
+                  : 'Auto-synced desktop clipboard to phone';
             }
           }
           notifyListeners();
