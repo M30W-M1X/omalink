@@ -2,7 +2,7 @@
 
 **Android Continuity, Remote Desktop, Trackpad, OS Control, and AI Agent companion for Omarchy Linux** — featuring a zero-dependency Python bridge, an Omarchy top-bar plugin (`omalink.panel`), live Omarchy theme syncing, silent notification-shade machine vitals + Agy limits, and 5 animated stylized mascots & switchable Android app icons.
 
-> **Latest Android APK (`v3.6.0`):** Download `app-release.apk` and `SHA256SUMS` from [GitHub Release v3.6.0](https://github.com/M30W-M1X/omalink/releases/tag/v3.6.0) and verify with `grep '  app-release.apk$' SHA256SUMS | sha256sum -c -`.
+> **Latest Android APK (`v3.7.0`):** Download `app-release.apk` and `SHA256SUMS` from [GitHub Release v3.7.0](https://github.com/M30W-M1X/omalink/releases/tag/v3.7.0) and verify with `grep '  app-release.apk$' SHA256SUMS | sha256sum -c -`.
 
 ---
 
@@ -46,21 +46,21 @@ See [AGENT_INSTALL.md](AGENT_INSTALL.md) for the full deterministic AI agent run
 
 ### Option 3 — Digest-Verified & Commit-Pinned Release Installer
 
-Download `install.sh` and `SHA256SUMS` for `v3.6.0`, verify the exact `install.sh` artifact against its published SHA-256 digest, inspect it, and run it pinned to the immutable 40-character commit SHA (`fa87f855b413e5afe25dda11e473623a6761aa33`):
+Download `install.sh` and `SHA256SUMS` for `v3.7.0`, verify the exact `install.sh` artifact against its published SHA-256 digest, inspect it, and run it pinned to the immutable 40-character commit SHA (`adfceb68b87fc9e7def2ddf40269b011381dc789`):
 
 ```bash
-curl -fsSLO https://github.com/M30W-M1X/omalink/releases/download/v3.6.0/install.sh
-curl -fsSLO https://github.com/M30W-M1X/omalink/releases/download/v3.6.0/SHA256SUMS
-echo "7d4805d59bf59b0a256109f2133f1b18d3c01f171166ed3cf9452796f19270c2  install.sh" | sha256sum -c -
+curl -fsSLO https://github.com/M30W-M1X/omalink/releases/download/v3.7.0/install.sh
+curl -fsSLO https://github.com/M30W-M1X/omalink/releases/download/v3.7.0/SHA256SUMS
+echo "38806498815647abbbba5244a76eb9cb090b0e95983e0ae4b98bfb26c8b3a360  install.sh" | sha256sum -c -
 grep '  install.sh$' SHA256SUMS | sha256sum -c -
 less install.sh
-bash install.sh --ref fa87f855b413e5afe25dda11e473623a6761aa33
+bash install.sh --ref adfceb68b87fc9e7def2ddf40269b011381dc789
 ```
 
 Before starting `omalink-bridge.service`, `install.sh` also verifies the SHA-256 digest of every runtime bridge and plugin file (`manifest.json`, `bridge/*.py`, `omarchy-plugin/*`).
 
 Useful installer flags:
-- `./install.sh --ref fa87f855b413e5afe25dda11e473623a6761aa33` — bind remote clone to an immutable 40-char commit SHA (default: `fa87f855b413e5afe25dda11e473623a6761aa33`, release `v3.6.0`)
+- `./install.sh --ref adfceb68b87fc9e7def2ddf40269b011381dc789` — bind remote clone to an immutable 40-char commit SHA (default: `adfceb68b87fc9e7def2ddf40269b011381dc789`, release `v3.7.0`)
 - `./install.sh --json` — machine-readable JSON output (used by AI agents)
 - `./install.sh --check --json` — read-only health, service, plugin & tool diagnostics
 - `./install.sh --tls` — enable self-signed TLS 1.2+ with SHA-256 pinning (enabled by default)
@@ -74,10 +74,10 @@ No Python pip dependencies are required — the bridge runs on **Python 3.11+ st
 
 ## Pairing Your Android Phone
 
-1. Download `app-release.apk` and `SHA256SUMS` from [GitHub Release v3.6.0](https://github.com/M30W-M1X/omalink/releases/tag/v3.6.0) and verify the APK digest before installing:
+1. Download `app-release.apk` and `SHA256SUMS` from [GitHub Release v3.7.0](https://github.com/M30W-M1X/omalink/releases/tag/v3.7.0) and verify the APK digest before installing:
    ```bash
-   curl -fsSLO https://github.com/M30W-M1X/omalink/releases/download/v3.6.0/app-release.apk
-   curl -fsSLO https://github.com/M30W-M1X/omalink/releases/download/v3.6.0/SHA256SUMS
+   curl -fsSLO https://github.com/M30W-M1X/omalink/releases/download/v3.7.0/app-release.apk
+   curl -fsSLO https://github.com/M30W-M1X/omalink/releases/download/v3.7.0/SHA256SUMS
    grep '  app-release.apk$' SHA256SUMS | sha256sum -c -
    ```
 2. Click the **OmaLink badge** in your Omarchy top bar — it displays a live **QR code** by default (or run `./install.sh --show-pairing` in a local terminal).
@@ -108,9 +108,10 @@ No Python pip dependencies are required — the bridge runs on **Python 3.11+ st
   - Low-latency Wayland screen stream (`grim`), pan/zoom, virtual mouse pointer (`zwlr_virtual_pointer_manager_v1`), and keyboard input (`wtype`).
   - Dedicated **Wireless Trackpad & Presentation Remote** (1-finger move/tap, 2-finger scroll, scroll strip, L/M/R clicks, and slide navigation).
 - **Continuity (Phone ↔ Omarchy)**
+  - **Omarchy Top-Bar Connected Device Card:** Displays your phone's real device name (e.g. `Pixel 8`), a 10-segment visual battery gauge (showing `⚡` only when actively charging), `● LINKED` badge, 1-click **Ring Phone** & **Send Clip** (pushes desktop Wayland clipboard to your phone), and an inline notification quick-reply bubble.
   - Mirrors incoming Android notifications and calls onto your Hyprland desktop (`notify-send`) with **inline quick-reply** back to Android `RemoteInput`.
   - **Universal Clipboard** with automatic history sync and **Continue on Omarchy** Android Share Sheet target (share any link from Chrome/YouTube/Spotify to open it directly on Omarchy).
-  - **Find My Phone** ringer from desktop + phone battery readout in the Omarchy top-bar plugin.
+  - **Find My Phone with 1-Tap Stop Ringing:** Trigger an alarm ring from the Omarchy top bar or Control Plane and silence it immediately on your phone via the pop-up **Find My Phone Alert** dialog or the lock-screen notification's **Stop Ringing** button (just like Apple Find My iPhone).
 - **Interactive PTY Terminal & 2-Way File Explorer**
   - Full login shell over WebSockets (`/ws/terminal`) with `xterm` rendering and quick-key toolbar (`CTRL`, `ESC`, `TAB`, `^C`, `^D`, `^L`, arrows).
   - Browse directories, preview files, upload/download photos & files between phone and desktop, rename, Trash (`gio trash`), open on desktop (`xdg-open`), or hand paths straight to an AI agent.

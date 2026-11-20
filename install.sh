@@ -1,22 +1,22 @@
 #!/usr/bin/env bash
 # OmaLink installer for humans and AI coding agents running inside Omarchy Linux.
-# Defaults to an immutable 40-char commit SHA (v3.6.0), verifies runtime file SHA-256 digests,
+# Defaults to an immutable 40-char commit SHA (v3.7.0), verifies runtime file SHA-256 digests,
 # and enables TLS 1.2+ encryption with SHA-256 certificate pinning.
 #
 # Recommended usage (download from release with SHA256SUMS, verify digest, then run):
-#   curl -fsSLO https://github.com/M30W-M1X/omalink/releases/download/v3.6.0/install.sh
-#   curl -fsSLO https://github.com/M30W-M1X/omalink/releases/download/v3.6.0/SHA256SUMS
+#   curl -fsSLO https://github.com/M30W-M1X/omalink/releases/download/v3.7.0/install.sh
+#   curl -fsSLO https://github.com/M30W-M1X/omalink/releases/download/v3.7.0/SHA256SUMS
 #   grep '  install.sh$' SHA256SUMS | sha256sum -c -
 #   less install.sh
-#   bash install.sh --ref fa87f855b413e5afe25dda11e473623a6761aa33
+#   bash install.sh --ref adfceb68b87fc9e7def2ddf40269b011381dc789
 #
 # Or from a local checkout (such as `omarchy plugin add`):
 #   ./install.sh --json
 #   ./install.sh --check --json
 set -euo pipefail
 
-RELEASE_TAG="v3.6.0"
-DEFAULT_COMMIT_SHA="fa87f855b413e5afe25dda11e473623a6761aa33"
+RELEASE_TAG="v3.7.0"
+DEFAULT_COMMIT_SHA="adfceb68b87fc9e7def2ddf40269b011381dc789"
 DEFAULT_REF="$DEFAULT_COMMIT_SHA"
 REPO_URL="${OMALINK_REPO:-https://github.com/M30W-M1X/omalink.git}"
 RELEASES_URL="https://github.com/M30W-M1X/omalink/releases/tag/${RELEASE_TAG}"
@@ -54,9 +54,9 @@ Install, verify, or uninstall the OmaLink companion bridge service and Omarchy t
 Options:
   --dir PATH           Repository/install directory (auto-detected if run from repo;
                        otherwise defaults to ~/.local/share/omalink)
-  --ref COMMIT_SHA     Immutable 40-char commit SHA (or verified release tag v3.6.0)
+  --ref COMMIT_SHA     Immutable 40-char commit SHA (or verified release tag v3.7.0)
                        to install when cloning remotely
-                       (default: fa87f855b413e5afe25dda11e473623a6761aa33)
+                       (default: adfceb68b87fc9e7def2ddf40269b011381dc789)
   --allow-mutable      Explicitly allow a mutable git ref or locally modified files (not recommended)
   --port PORT          Bridge listen port (default: 7842)
   --tls                Enable self-signed TLS encryption on the bridge service (default)
@@ -177,16 +177,16 @@ verify_runtime_digests() {
   command -v sha256sum >/dev/null 2>&1 || die "sha256sum is required to verify runtime artifact integrity."
   if ! (
     cd "$target_dir" && sha256sum -c --status <<'EOF_SHA256'
-768ac3e142b01c12da682778697c381d75abe0b933378a35d4155570fe5123e2  manifest.json
+a88ee7d5b2e4ea936f0d83ae25ddc33e7a75799734a497e524ac317ee06e1ae1  manifest.json
 7070ad8428f54f37f49b27043a4fd9934a632108550659b7afc6fd430f8d8723  bridge/omarchy_wizard_bridge.py
 08204f0acf2d2c87221fb12ce76223b4d8fdb8cf1df95ec054a0bee1b8d46b27  bridge/omarchy_control.py
-cf7ee85c24dc7fea5400b7a4d9240dd803641b743d18edf66de2a75ba83dd879  bridge/omarchy_continuity.py
+2b2f274dc7b0e7d94f58ac61aa578672def4b23f7a06ad20035f4b1aa302da46  bridge/omarchy_continuity.py
 2c708c3e1fc9d1cbd3930fbf8cff55f15c5ca96096e3f2cade152ce641dbad35  bridge/omarchy_desktop.py
 b7dd6b9958741d23d8e5e4c65db0a7311c51779e61b42c1a06a565c32189e749  bridge/omarchy_files.py
 116a0231c0ea8edf2d19a6150b18fdb19aed83c34556e823b738b73c45bd0fca  bridge/omarchy_pty.py
 66d185f29f85f98a439350b895e46b9a1bc8d16fae195eddcac47e7faabc9ceb  bridge/omarchy_sessions.py
 ee4c6d273253f481bae0514cb1432db7838b7e2e1bcc0d268cb99a7973eb3c83  omarchy-plugin/status.py
-5943ffe5fcc3b61fbc9d780b5eefe8845ed2a31954c4889aeb8ed032fe74fd42  omarchy-plugin/Panel.qml
+e5b1941607c4d3c9c9bf0220e0df651dcbbfdce808272d30a06303ed43cb562a  omarchy-plugin/Panel.qml
 8be84d43e8dcd6e935e0707dfbc07f65f0e9abcd08cc3bb04a53611c0dcd27c2  omarchy-plugin/WizardIcon.qml
 EOF_SHA256
   ); then

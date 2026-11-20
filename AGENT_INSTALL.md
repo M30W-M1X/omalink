@@ -33,11 +33,11 @@ Requirements:
 
 ```bash
 # Option A: Download release installer, verify exact SHA-256 digest, and run pinned to immutable 40-char commit SHA
-curl -fsSLO https://github.com/M30W-M1X/omalink/releases/download/v3.6.0/install.sh
-curl -fsSLO https://github.com/M30W-M1X/omalink/releases/download/v3.6.0/SHA256SUMS
-echo "7d4805d59bf59b0a256109f2133f1b18d3c01f171166ed3cf9452796f19270c2  install.sh" | sha256sum -c -
+curl -fsSLO https://github.com/M30W-M1X/omalink/releases/download/v3.7.0/install.sh
+curl -fsSLO https://github.com/M30W-M1X/omalink/releases/download/v3.7.0/SHA256SUMS
+echo "38806498815647abbbba5244a76eb9cb090b0e95983e0ae4b98bfb26c8b3a360  install.sh" | sha256sum -c -
 grep '  install.sh$' SHA256SUMS | sha256sum -c -
-bash install.sh --ref fa87f855b413e5afe25dda11e473623a6761aa33 --json
+bash install.sh --ref adfceb68b87fc9e7def2ddf40269b011381dc789 --json
 
 # Option B: Install as an Omarchy Plugin Marketplace git plugin
 omarchy plugin add https://github.com/M30W-M1X/omalink.git --enable --yes
@@ -45,8 +45,8 @@ omarchy plugin add https://github.com/M30W-M1X/omalink.git --enable --yes
 
 # Option C: From a local checkout bound to the immutable 40-char commit SHA
 git clone --no-checkout https://github.com/M30W-M1X/omalink.git ~/.local/share/omalink
-git -C ~/.local/share/omalink fetch --depth 1 origin fa87f855b413e5afe25dda11e473623a6761aa33
-git -C ~/.local/share/omalink checkout --detach fa87f855b413e5afe25dda11e473623a6761aa33
+git -C ~/.local/share/omalink fetch --depth 1 origin adfceb68b87fc9e7def2ddf40269b011381dc789
+git -C ~/.local/share/omalink checkout --detach adfceb68b87fc9e7def2ddf40269b011381dc789
 cd ~/.local/share/omalink
 ./install.sh --json
 ```
@@ -106,7 +106,7 @@ sudo ufw allow 7842/tcp
 
 Give the user a concise summary with:
 1. **Service & Plugin status** (active bridge port, LAN / Tailscale IP, top-bar `omalink.panel` badge enabled).
-2. **Android APK download & digest verification (`v3.6.0`)**: `https://github.com/M30W-M1X/omalink/releases/tag/v3.6.0` (download `app-release.apk` and `SHA256SUMS`, then verify with `grep '  app-release.apk$' SHA256SUMS | sha256sum -c -`).
+2. **Android APK download & digest verification (`v3.7.0`)**: `https://github.com/M30W-M1X/omalink/releases/tag/v3.7.0` (download `app-release.apk` and `SHA256SUMS`, then verify with `grep '  app-release.apk$' SHA256SUMS | sha256sum -c -`).
 3. **Pairing instructions**:
    - Click the **OmaLink icon in the Omarchy top bar** to display the live pairing QR code (or run `./install.sh --show-pairing` locally in a private terminal).
    - Scan with your phone camera (opens `omalink://pair?...`) or open **OmaLink** on Android -> **Sanctum** -> **Scan LAN (mDNS)**.
