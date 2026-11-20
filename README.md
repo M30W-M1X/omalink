@@ -38,21 +38,21 @@ See [AGENT_INSTALL.md](AGENT_INSTALL.md) for the full deterministic AI agent run
 
 ### Option 3 — Digest-Verified & Commit-Pinned Release Installer
 
-Download `install.sh` and `SHA256SUMS` for `v3.6.0`, verify the exact `install.sh` artifact against its published SHA-256 digest, inspect it, and run it pinned to the immutable 40-character commit SHA (`1113525f8a8dd49a41956958b003da4142276d70`):
+Download `install.sh` and `SHA256SUMS` for `v3.6.0`, verify the exact `install.sh` artifact against its published SHA-256 digest, inspect it, and run it pinned to the immutable 40-character commit SHA (`fa87f855b413e5afe25dda11e473623a6761aa33`):
 
 ```bash
 curl -fsSLO https://github.com/M30W-M1X/omalink/releases/download/v3.6.0/install.sh
 curl -fsSLO https://github.com/M30W-M1X/omalink/releases/download/v3.6.0/SHA256SUMS
-echo "244135604cd251be95368070d8852d6e86f6f7aecbbcdfb619c6324204c7af6b  install.sh" | sha256sum -c -
+echo "7d4805d59bf59b0a256109f2133f1b18d3c01f171166ed3cf9452796f19270c2  install.sh" | sha256sum -c -
 grep '  install.sh$' SHA256SUMS | sha256sum -c -
 less install.sh
-bash install.sh --ref 1113525f8a8dd49a41956958b003da4142276d70
+bash install.sh --ref fa87f855b413e5afe25dda11e473623a6761aa33
 ```
 
 Before starting `omalink-bridge.service`, `install.sh` also verifies the SHA-256 digest of every runtime bridge and plugin file (`manifest.json`, `bridge/*.py`, `omarchy-plugin/*`).
 
 Useful installer flags:
-- `./install.sh --ref 1113525f8a8dd49a41956958b003da4142276d70` — bind remote clone to an immutable 40-char commit SHA (default: `1113525f8a8dd49a41956958b003da4142276d70`, release `v3.6.0`)
+- `./install.sh --ref fa87f855b413e5afe25dda11e473623a6761aa33` — bind remote clone to an immutable 40-char commit SHA (default: `fa87f855b413e5afe25dda11e473623a6761aa33`, release `v3.6.0`)
 - `./install.sh --json` — machine-readable JSON output (used by AI agents)
 - `./install.sh --check --json` — read-only health, service, plugin & tool diagnostics
 - `./install.sh --tls` — enable self-signed TLS 1.2+ with SHA-256 pinning (enabled by default)
