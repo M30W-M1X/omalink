@@ -49,11 +49,10 @@ See [AGENT_INSTALL.md](AGENT_INSTALL.md) for the full deterministic AI agent run
 Download `install.sh` and `SHA256SUMS` for `v3.7.0`, verify the exact `install.sh` artifact against its published SHA-256 digest, inspect it, and run it pinned to the immutable 40-character commit SHA (`adfceb68b87fc9e7def2ddf40269b011381dc789`):
 
 ```bash
-curl -fsSLO https://github.com/M30W-M1X/omalink/releases/download/v3.7.0/install.sh
-curl -fsSLO https://github.com/M30W-M1X/omalink/releases/download/v3.7.0/SHA256SUMS
-echo "38806498815647abbbba5244a76eb9cb090b0e95983e0ae4b98bfb26c8b3a360  install.sh" | sha256sum -c -
-grep '  install.sh$' SHA256SUMS | sha256sum -c -
-less install.sh
+curl -fsSLO https://github.com/M30W-M1X/omalink/releases/download/v3.7.0/install.sh && \
+curl -fsSLO https://github.com/M30W-M1X/omalink/releases/download/v3.7.0/SHA256SUMS && \
+echo "38806498815647abbbba5244a76eb9cb090b0e95983e0ae4b98bfb26c8b3a360  install.sh" | sha256sum -c - && \
+grep '  install.sh$' SHA256SUMS | sha256sum -c - && \
 bash install.sh --ref adfceb68b87fc9e7def2ddf40269b011381dc789
 ```
 
@@ -76,8 +75,9 @@ No Python pip dependencies are required — the bridge runs on **Python 3.11+ st
 
 1. Download `app-release.apk` and `SHA256SUMS` from [GitHub Release v3.7.0](https://github.com/M30W-M1X/omalink/releases/tag/v3.7.0) and verify the APK digest before installing:
    ```bash
-   curl -fsSLO https://github.com/M30W-M1X/omalink/releases/download/v3.7.0/app-release.apk
-   curl -fsSLO https://github.com/M30W-M1X/omalink/releases/download/v3.7.0/SHA256SUMS
+   curl -fsSLO https://github.com/M30W-M1X/omalink/releases/download/v3.7.0/app-release.apk && \
+   curl -fsSLO https://github.com/M30W-M1X/omalink/releases/download/v3.7.0/SHA256SUMS && \
+   echo "2703cd1e414d8d51298bd930330597599c7cb38e4e66ee69063607c12c9e8e5e  app-release.apk" | sha256sum -c - && \
    grep '  app-release.apk$' SHA256SUMS | sha256sum -c -
    ```
 2. Click the **OmaLink badge** in your Omarchy top bar — it displays a live **QR code** by default (or run `./install.sh --show-pairing` in a local terminal).
