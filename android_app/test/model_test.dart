@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:omalink/models/agent_task.dart';
 import 'package:omalink/models/system_control.dart';
 import 'package:omalink/models/wizard_mood.dart';
+import 'package:omalink/services/bridge_client.dart';
 import 'package:omalink/services/notification_service.dart';
 import 'package:omalink/services/tls_overrides.dart';
 import 'package:omalink/theme/wizard_theme.dart';
@@ -260,5 +261,46 @@ void main() {
     expect(shade.body, contains('Session 18%'));
     expect(shade.body, contains('Weekly 32%'));
     expect(shade.lines.any((l) => l.contains('19.3M tok')), isTrue);
+  });
+
+  test('confirmPendingPairing and confirmPendingShare bind to exact displayed request and discard on change', () async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    final client = BridgeClient();
+    const fpA = '1111111111111111111111111111111111111111111111111111111111111111';
+    const fpB = '2222222222222222222222222222222222222222222222222222222222222222';
+
+    expect(
+      client.queuePairingUri('omalink://pair?host=192.168.1.10&port=7842&token=tokA&tls=1&fp=$fpA'),
+      isTrue,
+    );
+    final displayedPair = client.pendingPairing;
+    expect(displayedPair, isNotNull);
+
+    // A second pairing URI arrives before the user taps Confirm on displayedPair:
+    expect(
+      client.queuePairingUri('omalink://pair?host=192.168.1.99&port=7842&token=tokB&tls=1&fp=$fpB'),
+      isTrue,
+    );
+    expect(client.pendingPairing?.host, '192.168.1.99');
+
+    // Confirming the originally displayed request must fail closed and discard the replaced pending request:
+    final pairConfirmed = await client.confirmPendingPairing(displayedPair!);
+    expect(pairConfirmed, isFalse);
+    expect(client.pendingPairing, isNull);
+    expect(client.settings.host, isNot('192.168.1.99'));
+    expect(client.settings.token, isNot('tokB'));
+
+    // Same for pending share confirmation:
+    client.queueIncomingShare(text: 'https://example.com/safe', subject: 'Safe');
+    final displayedShare = client.pendingShare;
+    expect(displayedShare, isNotNull);
+
+    // Another share arrives while dialog for displayedShare is open:
+    client.queueIncomingShare(text: 'https://example.com/Unexpected', subject: 'Replaced');
+    expect(client.pendingShare?.text, 'https://example.com/Unexpected');
+
+    final shareConfirmed = await client.confirmPendingShare(displayedShare!);
+    expect(shareConfirmed, isFalse);
+    expect(client.pendingShare, isNull);
   });
 }

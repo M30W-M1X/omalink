@@ -40,6 +40,15 @@ class PendingPairingRequest {
   final bool useTls;
   final String tlsFingerprint;
   final String tailscaleHost;
+
+  bool matches(PendingPairingRequest other) {
+    return host == other.host &&
+        port == other.port &&
+        token == other.token &&
+        useTls == other.useTls &&
+        tlsFingerprint == other.tlsFingerprint &&
+        tailscaleHost == other.tailscaleHost;
+  }
 }
 
 class PendingShareRequest {
@@ -65,6 +74,15 @@ class PendingShareRequest {
   final String packageName;
   final String filename;
   final String dataBase64;
+
+  bool matches(PendingShareRequest other) {
+    return isFile == other.isFile &&
+        text == other.text &&
+        subject == other.subject &&
+        packageName == other.packageName &&
+        filename == other.filename &&
+        dataBase64 == other.dataBase64;
+  }
 }
 
 class BridgeClient extends ChangeNotifier {
@@ -1560,26 +1578,34 @@ class BridgeClient extends ChangeNotifier {
     return true;
   }
 
-  void dismissPendingPairing() {
+  void dismissPendingPairing([PendingPairingRequest? expected]) {
     if (_pendingPairing == null) return;
     _pendingPairing = null;
     notifyListeners();
   }
 
-  Future<bool> confirmPendingPairing() async {
-    final req = _pendingPairing;
-    if (req == null) return false;
+  Future<bool> confirmPendingPairing(PendingPairingRequest expected) async {
+    final current = _pendingPairing;
+    if (current == null) return false;
+    if (!identical(current, expected) || !current.matches(expected)) {
+      _pendingPairing = null;
+      notifyListeners();
+      return false;
+    }
     _pendingPairing = null;
     final next = _settings.copyWith(
-      host: req.host,
-      port: req.port,
-      token: req.token,
+      host: expected.host,
+      port: expected.port,
+      token: expected.token,
       demoMode: false,
-      useTls: req.useTls,
-      tlsFingerprint: req.tlsFingerprint,
-      tailscaleHost: req.tailscaleHost.isNotEmpty ? req.tailscaleHost : _settings.tailscaleHost,
+      useTls: expected.useTls,
+      tlsFingerprint: expected.tlsFingerprint,
+      tailscaleHost: expected.tailscaleHost.isNotEmpty
+          ? expected.tailscaleHost
+          : _settings.tailscaleHost,
     );
-    _continuityBanner = '✨ Paired with ${req.host}:${req.port}${req.useTls ? ' (TLS)' : ''}';
+    _continuityBanner =
+        '✨ Paired with ${expected.host}:${expected.port}${expected.useTls ? ' (TLS)' : ''}';
     await updateSettings(next);
     return true;
   }
@@ -1607,24 +1633,29 @@ class BridgeClient extends ChangeNotifier {
     notifyListeners();
   }
 
-  void dismissPendingShare() {
+  void dismissPendingShare([PendingShareRequest? expected]) {
     if (_pendingShare == null) return;
     _pendingShare = null;
     notifyListeners();
   }
 
-  Future<bool> confirmPendingShare() async {
-    final req = _pendingShare;
-    if (req == null) return false;
+  Future<bool> confirmPendingShare(PendingShareRequest expected) async {
+    final current = _pendingShare;
+    if (current == null) return false;
+    if (!identical(current, expected) || !current.matches(expected)) {
+      _pendingShare = null;
+      notifyListeners();
+      return false;
+    }
     _pendingShare = null;
     notifyListeners();
-    if (req.isFile) {
-      return uploadSharedFile(req.filename, req.dataBase64);
+    if (expected.isFile) {
+      return uploadSharedFile(expected.filename, expected.dataBase64);
     }
     return handoffToOmarchy(
-      text: req.text,
-      subject: req.subject,
-      packageName: req.packageName,
+      text: expected.text,
+      subject: expected.subject,
+      packageName: expected.packageName,
     );
   }
 

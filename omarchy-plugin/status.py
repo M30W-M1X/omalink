@@ -92,34 +92,30 @@ def _local_request(
     payload: dict | None = None,
     timeout: float = 1.5,
 ) -> tuple[dict | None, bool]:
-    """Query the local loopback bridge, preferring strictly verified TLS over cert.pem."""
+    """Query the local loopback bridge over strictly verified TLS (cert.pem), failing closed on TLS error."""
+    ctx = build_local_ssl_context()
+    if ctx is None:
+        return None, False
+
     headers = {"Authorization": f"Bearer {token}"} if token else {}
     data: bytes | None = None
     if payload is not None:
         headers["Content-Type"] = "application/json"
         data = json.dumps(payload).encode("utf-8")
 
-    ctx = build_local_ssl_context()
-    attempts: list[tuple[str, ssl.SSLContext | None]] = []
-    if ctx is not None:
-        attempts.append(("https", ctx))
-    attempts.append(("http", None))
-
-    for scheme, ssl_ctx in attempts:
-        req = request.Request(
-            f"{scheme}://127.0.0.1:{port}{path}",
-            data=data,
-            headers=headers,
-            method=method,
-        )
-        try:
-            with request.urlopen(req, timeout=timeout, context=ssl_ctx) as resp:
-                raw = resp.read(256 * 1024).decode("utf-8", errors="replace")
-                parsed = json.loads(raw)
-                return (parsed if isinstance(parsed, dict) else None), (scheme == "https")
-        except (error.URLError, error.HTTPError, TimeoutError, json.JSONDecodeError, OSError, ssl.SSLError):
-            continue
-    return None, False
+    req = request.Request(
+        f"https://127.0.0.1:{port}{path}",
+        data=data,
+        headers=headers,
+        method=method,
+    )
+    try:
+        with request.urlopen(req, timeout=timeout, context=ctx) as resp:
+            raw = resp.read(256 * 1024).decode("utf-8", errors="replace")
+            parsed = json.loads(raw)
+            return (parsed if isinstance(parsed, dict) else None), True
+    except (error.URLError, error.HTTPError, TimeoutError, json.JSONDecodeError, OSError, ssl.SSLError):
+        return None, False
 
 
 def service_unit_path(name: str = SERVICE_UNIT) -> Path:

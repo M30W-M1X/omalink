@@ -35,6 +35,10 @@ class _OmarchyWizardAppState extends State<OmarchyWizardApp>
   int _tabIndex = 0;
   bool _pairingDialogOpen = false;
   bool _shareDialogOpen = false;
+  PendingPairingRequest? _displayedPairingRequest;
+  BuildContext? _pairingDialogContext;
+  PendingShareRequest? _displayedShareRequest;
+  BuildContext? _shareDialogContext;
   bool _isForeground = true;
 
   @override
@@ -68,11 +72,44 @@ class _OmarchyWizardAppState extends State<OmarchyWizardApp>
     if (ctx == null) return;
 
     final pendingPair = widget.client.pendingPairing;
+    if (_pairingDialogOpen && _displayedPairingRequest != null) {
+      final displayed = _displayedPairingRequest!;
+      if (pendingPair == null ||
+          !identical(pendingPair, displayed) ||
+          !pendingPair.matches(displayed)) {
+        widget.client.dismissPendingPairing(displayed);
+        final dCtx = _pairingDialogContext;
+        _pairingDialogContext = null;
+        if (dCtx != null && dCtx.mounted) {
+          Navigator.of(dCtx).pop(false);
+        }
+        return;
+      }
+    }
+
+    final pendingShare = widget.client.pendingShare;
+    if (_shareDialogOpen && _displayedShareRequest != null) {
+      final displayed = _displayedShareRequest!;
+      if (pendingShare == null ||
+          !identical(pendingShare, displayed) ||
+          !pendingShare.matches(displayed)) {
+        widget.client.dismissPendingShare(displayed);
+        final dCtx = _shareDialogContext;
+        _shareDialogContext = null;
+        if (dCtx != null && dCtx.mounted) {
+          Navigator.of(dCtx).pop(false);
+        }
+        return;
+      }
+    }
+
     if (pendingPair != null && !_pairingDialogOpen) {
       _pairingDialogOpen = true;
+      _displayedPairingRequest = pendingPair;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) {
           _pairingDialogOpen = false;
+          _displayedPairingRequest = null;
           return;
         }
         _showPairingConfirmation(pendingPair);
@@ -80,12 +117,13 @@ class _OmarchyWizardAppState extends State<OmarchyWizardApp>
       return;
     }
 
-    final pendingShare = widget.client.pendingShare;
     if (pendingShare != null && !_shareDialogOpen && !_pairingDialogOpen) {
       _shareDialogOpen = true;
+      _displayedShareRequest = pendingShare;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) {
           _shareDialogOpen = false;
+          _displayedShareRequest = null;
           return;
         }
         _showShareConfirmation(pendingShare);
@@ -95,8 +133,15 @@ class _OmarchyWizardAppState extends State<OmarchyWizardApp>
 
   Future<void> _showPairingConfirmation(PendingPairingRequest req) async {
     final ctx = _navKey.currentContext;
-    if (ctx == null) {
+    final current = widget.client.pendingPairing;
+    if (ctx == null ||
+        current == null ||
+        !identical(current, req) ||
+        !current.matches(req)) {
       _pairingDialogOpen = false;
+      _displayedPairingRequest = null;
+      _pairingDialogContext = null;
+      widget.client.dismissPendingPairing(req);
       return;
     }
     final hasPin = req.tlsFingerprint.length == 64;
@@ -106,116 +151,147 @@ class _OmarchyWizardAppState extends State<OmarchyWizardApp>
     final confirmed = await showDialog<bool>(
       context: ctx,
       barrierDismissible: false,
-      builder: (dialogCtx) => AlertDialog(
-        backgroundColor: WizardColors.surfaceCard,
-        title: Text(
-          'Pair with New Omarchy Host?',
-          style: TextStyle(color: WizardColors.textPrimary),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Confirming will switch your OmaLink destination and may relay private phone notifications, clipboard contents, and desktop controls to:',
-              style: TextStyle(color: WizardColors.textMuted, fontSize: 13),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Host: ${req.host}:${req.port}',
-              style: TextStyle(
-                color: WizardColors.textPrimary,
-                fontWeight: FontWeight.w700,
-                fontFamily: 'monospace',
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Transport: ${req.useTls ? 'TLS Encrypted' : 'WARNING: Unencrypted HTTP'}',
-              style: TextStyle(
-                color: req.useTls ? WizardColors.emeraldSage : WizardColors.coralError,
-                fontWeight: FontWeight.w600,
-                fontSize: 12,
-              ),
-            ),
-            if (req.useTls) ...[
-              const SizedBox(height: 4),
+      builder: (dialogCtx) {
+        _pairingDialogContext = dialogCtx;
+        return AlertDialog(
+          backgroundColor: WizardColors.surfaceCard,
+          title: Text(
+            'Pair with New Omarchy Host?',
+            style: TextStyle(color: WizardColors.textPrimary),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
               Text(
-                'Cert SHA-256: $fpPreview',
+                'Confirming will switch your OmaLink destination and may relay private phone notifications, clipboard contents, and desktop controls to:',
+                style: TextStyle(color: WizardColors.textMuted, fontSize: 13),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Host: ${req.host}:${req.port}',
                 style: TextStyle(
-                  color: hasPin ? WizardColors.cyanArcane : WizardColors.coralError,
-                  fontSize: 11,
+                  color: WizardColors.textPrimary,
+                  fontWeight: FontWeight.w700,
                   fontFamily: 'monospace',
                 ),
               ),
-            ],
-            if (req.useTls && !hasPin) ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: 4),
               Text(
-                'Warning: Missing SHA-256 certificate pin. Self-signed TLS connections without a pin will be rejected.',
-                style: TextStyle(color: WizardColors.coralError, fontSize: 12),
+                'Transport: ${req.useTls ? 'TLS Encrypted' : 'WARNING: Unencrypted HTTP'}',
+                style: TextStyle(
+                  color: req.useTls ? WizardColors.emeraldSage : WizardColors.coralError,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12,
+                ),
               ),
+              if (req.useTls) ...[
+                const SizedBox(height: 4),
+                Text(
+                  'Cert SHA-256: $fpPreview',
+                  style: TextStyle(
+                    color: hasPin ? WizardColors.cyanArcane : WizardColors.coralError,
+                    fontSize: 11,
+                    fontFamily: 'monospace',
+                  ),
+                ),
+              ],
+              if (req.useTls && !hasPin) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'Warning: Missing SHA-256 certificate pin. Self-signed TLS connections without a pin will be rejected.',
+                  style: TextStyle(color: WizardColors.coralError, fontSize: 12),
+                ),
+              ],
             ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogCtx).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final latest = widget.client.pendingPairing;
+                final matchesDisplayed = latest != null &&
+                    identical(latest, req) &&
+                    latest.matches(req);
+                Navigator.of(dialogCtx).pop(matchesDisplayed);
+              },
+              child: const Text('Confirm & Pair'),
+            ),
           ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogCtx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(dialogCtx).pop(true),
-            child: const Text('Confirm & Pair'),
-          ),
-        ],
-      ),
+        );
+      },
     );
+    _pairingDialogContext = null;
+    _displayedPairingRequest = null;
     _pairingDialogOpen = false;
     if (confirmed == true) {
-      await widget.client.confirmPendingPairing();
+      await widget.client.confirmPendingPairing(req);
     } else {
-      widget.client.dismissPendingPairing();
+      widget.client.dismissPendingPairing(req);
     }
     _checkPendingSecurityPrompts();
   }
 
   Future<void> _showShareConfirmation(PendingShareRequest req) async {
     final ctx = _navKey.currentContext;
-    if (ctx == null) {
+    final current = widget.client.pendingShare;
+    if (ctx == null ||
+        current == null ||
+        !identical(current, req) ||
+        !current.matches(req)) {
       _shareDialogOpen = false;
+      _displayedShareRequest = null;
+      _shareDialogContext = null;
+      widget.client.dismissPendingShare(req);
       return;
     }
     final summary = req.isFile ? 'File: ${req.filename}' : req.text;
     final confirmed = await showDialog<bool>(
       context: ctx,
-      builder: (dialogCtx) => AlertDialog(
-        backgroundColor: WizardColors.surfaceCard,
-        title: Text(
-          req.isFile ? 'Send File to Omarchy?' : 'Continue on Omarchy?',
-          style: TextStyle(color: WizardColors.textPrimary),
-        ),
-        content: Text(
-          summary.length > 260 ? '${summary.substring(0, 260)}...' : summary,
-          style: TextStyle(color: WizardColors.textMuted, fontSize: 13),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogCtx).pop(false),
-            child: const Text('Cancel'),
+      barrierDismissible: false,
+      builder: (dialogCtx) {
+        _shareDialogContext = dialogCtx;
+        return AlertDialog(
+          backgroundColor: WizardColors.surfaceCard,
+          title: Text(
+            req.isFile ? 'Send File to Omarchy?' : 'Continue on Omarchy?',
+            style: TextStyle(color: WizardColors.textPrimary),
           ),
-          FilledButton(
-            onPressed: () => Navigator.of(dialogCtx).pop(true),
-            child: const Text('Send to Omarchy'),
+          content: Text(
+            summary.length > 260 ? '${summary.substring(0, 260)}...' : summary,
+            style: TextStyle(color: WizardColors.textMuted, fontSize: 13),
           ),
-        ],
-      ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogCtx).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final latest = widget.client.pendingShare;
+                final matchesDisplayed = latest != null &&
+                    identical(latest, req) &&
+                    latest.matches(req);
+                Navigator.of(dialogCtx).pop(matchesDisplayed);
+              },
+              child: const Text('Send to Omarchy'),
+            ),
+          ],
+        );
+      },
     );
+    _shareDialogContext = null;
+    _displayedShareRequest = null;
     _shareDialogOpen = false;
     if (confirmed == true) {
-      await widget.client.confirmPendingShare();
+      await widget.client.confirmPendingShare(req);
     } else {
-      widget.client.dismissPendingShare();
+      widget.client.dismissPendingShare(req);
     }
+    _checkPendingSecurityPrompts();
   }
 
   @override

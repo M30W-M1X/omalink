@@ -981,6 +981,40 @@ class BridgeTests(unittest.TestCase):
 
         asyncio.run(run_net_checks())
 
+    def test_status_helper_fails_closed_on_tls_error(self) -> None:
+        import importlib.util
+        import ssl
+
+        status_path = Path(__file__).resolve().parent.parent / "omarchy-plugin" / "status.py"
+        spec = importlib.util.spec_from_file_location("omalink_status_helper", status_path)
+        self.assertIsNotNone(spec)
+        status_mod = importlib.util.module_from_spec(spec)
+        assert spec.loader is not None
+        spec.loader.exec_module(status_mod)
+
+        # 1. If build_local_ssl_context returns None (missing/invalid cert), fail closed without network call
+        with mock.patch.object(status_mod, "build_local_ssl_context", return_value=None):
+            with mock.patch.object(status_mod.request, "urlopen") as mocked_open:
+                res, used_tls = status_mod._local_request(7842, "/api/status", "secret-token")
+                self.assertIsNone(res)
+                self.assertFalse(used_tls)
+                mocked_open.assert_not_called()
+
+        # 2. If HTTPS raises SSLError or URLError, fail closed and NEVER retry over plain HTTP
+        seen_urls: list[str] = []
+
+        def fail_tls(req, timeout=1.5, context=None):
+            seen_urls.append(req.full_url)
+            raise ssl.SSLError("CERTIFICATE_VERIFY_FAILED")
+
+        dummy_ctx = ssl.create_default_context()
+        with mock.patch.object(status_mod, "build_local_ssl_context", return_value=dummy_ctx):
+            with mock.patch.object(status_mod.request, "urlopen", side_effect=fail_tls):
+                res, used_tls = status_mod._local_request(7842, "/api/status", "secret-token")
+                self.assertIsNone(res)
+                self.assertFalse(used_tls)
+                self.assertEqual(seen_urls, ["https://127.0.0.1:7842/api/status"])
+
 
 if __name__ == "__main__":
     unittest.main()
