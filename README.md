@@ -2,7 +2,7 @@
 
 **Android Continuity, Remote Desktop, Trackpad, OS Control, and AI Agent companion for Omarchy Linux** — featuring a zero-dependency Python bridge, an Omarchy top-bar plugin (`omalink.panel`), live Omarchy theme syncing, silent notification-shade machine vitals + Agy limits, and 5 animated stylized mascots & switchable Android app icons.
 
-> **Latest Android APK:** Download `app-release.apk` from [GitHub Releases](https://github.com/M30W-M1X/omalink/releases/latest).
+> **Latest Android APK (`v3.6.0`):** Download `app-release.apk` and `SHA256SUMS` from [GitHub Release v3.6.0](https://github.com/M30W-M1X/omalink/releases/tag/v3.6.0) and verify with `grep '  app-release.apk$' SHA256SUMS | sha256sum -c -`.
 
 ---
 
@@ -36,18 +36,23 @@ Running **Antigravity (`agy`)**, **Claude Code**, **Codex**, **OpenCode**, or **
 
 See [AGENT_INSTALL.md](AGENT_INSTALL.md) for the full deterministic AI agent runbook and troubleshooting guide.
 
-### Option 3 — Pinned Release Installer
+### Option 3 — Digest-Verified & Commit-Pinned Release Installer
 
-Download and inspect the installer from an immutable release tag (`v3.4.0`), then run it:
+Download `install.sh` and `SHA256SUMS` for `v3.6.0`, verify the exact `install.sh` artifact against its published SHA-256 digest, inspect it, and run it pinned to the immutable 40-character commit SHA (`1113525f8a8dd49a41956958b003da4142276d70`):
 
 ```bash
-curl -fsSLO https://raw.githubusercontent.com/M30W-M1X/omalink/v3.4.0/install.sh
+curl -fsSLO https://github.com/M30W-M1X/omalink/releases/download/v3.6.0/install.sh
+curl -fsSLO https://github.com/M30W-M1X/omalink/releases/download/v3.6.0/SHA256SUMS
+echo "244135604cd251be95368070d8852d6e86f6f7aecbbcdfb619c6324204c7af6b  install.sh" | sha256sum -c -
+grep '  install.sh$' SHA256SUMS | sha256sum -c -
 less install.sh
-bash install.sh --ref v3.4.0
+bash install.sh --ref 1113525f8a8dd49a41956958b003da4142276d70
 ```
 
+Before starting `omalink-bridge.service`, `install.sh` also verifies the SHA-256 digest of every runtime bridge and plugin file (`manifest.json`, `bridge/*.py`, `omarchy-plugin/*`).
+
 Useful installer flags:
-- `./install.sh --ref v3.4.0` — pin an immutable Git tag or 40-char commit SHA (default: `v3.4.0`)
+- `./install.sh --ref 1113525f8a8dd49a41956958b003da4142276d70` — bind remote clone to an immutable 40-char commit SHA (default: `1113525f8a8dd49a41956958b003da4142276d70`, release `v3.6.0`)
 - `./install.sh --json` — machine-readable JSON output (used by AI agents)
 - `./install.sh --check --json` — read-only health, service, plugin & tool diagnostics
 - `./install.sh --tls` — enable self-signed TLS 1.2+ with SHA-256 pinning (enabled by default)
@@ -61,7 +66,12 @@ No Python pip dependencies are required — the bridge runs on **Python 3.11+ st
 
 ## Pairing Your Android Phone
 
-1. Download and install the latest `app-release.apk` from [GitHub Releases](https://github.com/M30W-M1X/omalink/releases/latest).
+1. Download `app-release.apk` and `SHA256SUMS` from [GitHub Release v3.6.0](https://github.com/M30W-M1X/omalink/releases/tag/v3.6.0) and verify the APK digest before installing:
+   ```bash
+   curl -fsSLO https://github.com/M30W-M1X/omalink/releases/download/v3.6.0/app-release.apk
+   curl -fsSLO https://github.com/M30W-M1X/omalink/releases/download/v3.6.0/SHA256SUMS
+   grep '  app-release.apk$' SHA256SUMS | sha256sum -c -
+   ```
 2. Click the **OmaLink badge** in your Omarchy top bar — it displays a live **QR code** by default (or run `./install.sh --show-pairing` in a local terminal).
 3. Scan the QR code with your phone camera (opens `omalink://pair?...`) **or** open **OmaLink** -> **Sanctum** -> **Scan LAN (mDNS)** / **Paste Pair URI**.
 4. If UFW is enabled on your host, allow the bridge port on your LAN:
