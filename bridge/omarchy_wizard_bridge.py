@@ -28,6 +28,7 @@ import ssl
 import struct
 import subprocess
 import sys
+import time
 from typing import Any
 from urllib.parse import parse_qs, quote, urlparse
 import uuid
@@ -43,6 +44,12 @@ WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 DEFAULT_PORT = 7842
 MAX_LOG_EVENTS = 500
 MAX_TASKS = 100
+MAX_HEADER_BYTES = 16 * 1024
+MAX_JSON_BODY_BYTES = 256 * 1024
+MAX_UPLOAD_BODY_BYTES = 35 * 1024 * 1024
+AUTH_FAIL_WINDOW_SEC = 60.0
+AUTH_FAIL_MAX = 8
+MIN_TOKEN_LEN = 24
 
 
 def ensure_agent_paths() -> None:
@@ -72,12 +79,35 @@ def get_config_dir() -> Path:
     return base / "omalink"
 
 
-def generate_pairing_token(digits: int = 5) -> str:
-    """Return a zero-padded cryptographically random numeric pairing PIN."""
-    return f"{secrets.randbelow(10 ** digits):0{digits}d}"
+def _write_private_text(path: Path, content: str) -> None:
+    """Create parent directory (0700) and write secret file atomically with mode 0600."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        os.chmod(path.parent, 0o700)
+    except OSError:
+        pass
+    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
+    fd = os.open(str(path), flags, 0o600)
+    try:
+        os.write(fd, content.encode("utf-8"))
+    finally:
+        os.close(fd)
+    try:
+        os.chmod(path, 0o600)
+    except OSError:
+        pass
 
 
-def load_or_create_token(explicit_token: str | None = None) -> str:
+def _is_weak_token(token: str) -> bool:
+    return len(token) < MIN_TOKEN_LEN or token.isdigit()
+
+
+def generate_pairing_token() -> str:
+    """Return a cryptographically random 256-bit URL-safe bearer token."""
+    return secrets.token_urlsafe(32)
+
+
+def load_or_create_token(explicit_token: str | None = None, *, rotate: bool = False) -> str:
     if explicit_token:
         return explicit_token.strip()
     env_token = (
@@ -88,26 +118,23 @@ def load_or_create_token(explicit_token: str | None = None) -> str:
         return env_token
     cfg_dir = get_config_dir()
     token_file = cfg_dir / "token"
-    if token_file.exists():
+    if not rotate and token_file.exists():
         saved = token_file.read_text(encoding="utf-8").strip()
-        if saved:
-            return saved
-    # Seamless migration from legacy ~/.config/omarchy-wizard/token
-    legacy_token_file = cfg_dir.parent / "omarchy-wizard" / "token"
-    if legacy_token_file.exists():
-        legacy = legacy_token_file.read_text(encoding="utf-8").strip()
-        if legacy:
-            cfg_dir.mkdir(parents=True, exist_ok=True)
-            token_file.write_text(legacy + "\n", encoding="utf-8")
+        if saved and not _is_weak_token(saved):
             try:
                 os.chmod(token_file, 0o600)
             except OSError:
                 pass
+            return saved
+    # Migrate legacy token ONLY if it already meets strength requirements
+    legacy_token_file = cfg_dir.parent / "omarchy-wizard" / "token"
+    if not rotate and legacy_token_file.exists():
+        legacy = legacy_token_file.read_text(encoding="utf-8").strip()
+        if legacy and not _is_weak_token(legacy):
+            _write_private_text(token_file, legacy + "\n")
             return legacy
-    cfg_dir.mkdir(parents=True, exist_ok=True)
     token = generate_pairing_token()
-    token_file.write_text(token + "\n", encoding="utf-8")
-    os.chmod(token_file, 0o600)
+    _write_private_text(token_file, token + "\n")
     return token
 
 
@@ -451,7 +478,7 @@ class OmarchyWizardBridge:
         self.host = host
         self.port = port
         self.token = load_or_create_token(token)
-        self.use_tls = bool(use_tls or os.environ.get("OMARCHY_WIZARD_TLS", "").lower() in {"1", "true", "yes"})
+        self.use_tls = bool(use_tls or os.environ.get("OMALINK_TLS", "").lower() in {"1", "true", "yes"} or os.environ.get("OMARCHY_WIZARD_TLS", "").lower() in {"1", "true", "yes"})
         self.tls_fingerprint: str = ""
         self._ssl_ctx: ssl.SSLContext | None = None
         self.tasks: dict[str, AgentTask] = {}
@@ -462,16 +489,33 @@ class OmarchyWizardBridge:
         self._mdns_proc: subprocess.Popen[bytes] | None = None
         self.server: asyncio.AbstractServer | None = None
         self.bound_port: int = port
+        self._auth_failures: dict[str, list[float]] = {}
 
-    def is_authorized(self, headers: dict[str, str], query: dict[str, list[str]]) -> bool:
+    def _is_rate_limited(self, peer_ip: str) -> bool:
+        now = time.monotonic()
+        stamps = [t for t in self._auth_failures.get(peer_ip, []) if (now - t) < AUTH_FAIL_WINDOW_SEC]
+        if stamps:
+            self._auth_failures[peer_ip] = stamps
+        else:
+            self._auth_failures.pop(peer_ip, None)
+        return len(stamps) >= AUTH_FAIL_MAX
+
+    def _record_auth_failure(self, peer_ip: str) -> None:
+        now = time.monotonic()
+        stamps = [t for t in self._auth_failures.get(peer_ip, []) if (now - t) < AUTH_FAIL_WINDOW_SEC]
+        stamps.append(now)
+        self._auth_failures[peer_ip] = stamps
+
+    def _clear_auth_failures(self, peer_ip: str) -> None:
+        self._auth_failures.pop(peer_ip, None)
+
+    def is_authorized(self, headers: dict[str, str], query: dict[str, list[str]] | None = None) -> bool:
+        """Authenticate strictly via Authorization: Bearer <token> header (no URL query tokens)."""
         auth = headers.get("authorization", "")
         if auth.lower().startswith("bearer "):
             candidate = auth[7:].strip()
-            if hmac.compare_digest(candidate, self.token):
+            if candidate and hmac.compare_digest(candidate, self.token):
                 return True
-        q_tokens = query.get("token", [])
-        if q_tokens and hmac.compare_digest(q_tokens[0], self.token):
-            return True
         return False
 
     def pairing_uri(self) -> str:
@@ -508,7 +552,6 @@ class OmarchyWizardBridge:
             "tailscale_ip": ts_ip,
             "tls": self.use_tls,
             "tls_fingerprint": self.tls_fingerprint,
-            "pair_uri": self.pairing_uri(),
             "total_tasks": len(self.tasks),
             "theme": omarchy_control.read_theme_palette_sync(),
             "phone": omarchy_continuity.get_phone_device_state(),
@@ -669,6 +712,10 @@ class OmarchyWizardBridge:
             return None
         cfg = get_config_dir()
         cfg.mkdir(parents=True, exist_ok=True)
+        try:
+            os.chmod(cfg, 0o700)
+        except OSError:
+            pass
         cert_path = cfg / "cert.pem"
         key_path = cfg / "key.pem"
         if not (cert_path.is_file() and key_path.is_file()):
@@ -676,7 +723,7 @@ class OmarchyWizardBridge:
                 raise RuntimeError("openssl is required to generate self-signed TLS certificate")
             lan_ip = detect_lan_ips()[0]
             ts_ip = omarchy_control.detect_tailscale_ip()
-            san = f"IP:127.0.0.1,IP:{lan_ip}" + (f",IP:{ts_ip}" if ts_ip else "")
+            san = f"DNS:localhost,IP:127.0.0.1,IP:{lan_ip}" + (f",IP:{ts_ip}" if ts_ip else "")
             subprocess.run(
                 [
                     "openssl",
@@ -702,8 +749,10 @@ class OmarchyWizardBridge:
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 timeout=10,
+                preexec_fn=lambda: os.umask(0o077),
             )
             os.chmod(key_path, 0o600)
+            os.chmod(cert_path, 0o644)
 
         # Compute SHA-256 fingerprint of DER cert for client pinning
         pem_lines = [
@@ -715,6 +764,7 @@ class OmarchyWizardBridge:
         self.tls_fingerprint = hashlib.sha256(der).hexdigest()
 
         ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        ctx.minimum_version = ssl.TLSVersion.TLSv1_2
         ctx.load_cert_chain(certfile=str(cert_path), keyfile=str(key_path))
         return ctx
 
@@ -860,10 +910,23 @@ class OmarchyWizardBridge:
     async def _handle_connection(
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     ) -> None:
+        peer = writer.get_extra_info("peername")
+        peer_ip = str(peer[0]) if isinstance(peer, (tuple, list)) and peer else "unknown"
         try:
             raw_head = await asyncio.wait_for(reader.readuntil(b"\r\n\r\n"), timeout=10.0)
+        except asyncio.LimitOverrunError:
+            await self._send_http_json(
+                writer, HTTPStatus.REQUEST_HEADER_FIELDS_TOO_LARGE, {"error": "Headers too large"}
+            )
+            return
         except Exception:
             writer.close()
+            return
+
+        if len(raw_head) > MAX_HEADER_BYTES:
+            await self._send_http_json(
+                writer, HTTPStatus.REQUEST_HEADER_FIELDS_TOO_LARGE, {"error": "Headers too large"}
+            )
             return
 
         lines = raw_head.decode("utf-8", errors="replace").split("\r\n")
@@ -885,11 +948,36 @@ class OmarchyWizardBridge:
                 k, v = line.split(":", 1)
                 headers[k.strip().lower()] = v.strip()
 
-        # WebSocket upgrades on /ws, /ws/terminal, and /ws/desktop
+        # Unauthenticated health ping (never buffers any request body)
+        if path == "/api/ping" and method == "GET":
+            await self._send_http_json(
+                writer, HTTPStatus.OK, {"ok": True, "app": "omalink-bridge", "tls": self.use_tls}
+            )
+            return
+
+        # Enforce rate limiting & header-only authentication BEFORE buffering any body bytes!
+        if self._is_rate_limited(peer_ip):
+            await self._send_http_json(
+                writer, HTTPStatus.TOO_MANY_REQUESTS, {"error": "Too many failed authentication attempts"}
+            )
+            return
+
+        if not self.is_authorized(headers):
+            self._record_auth_failure(peer_ip)
+            await self._send_http_json(writer, HTTPStatus.UNAUTHORIZED, {"error": "Unauthorized"})
+            return
+
+        self._clear_auth_failures(peer_ip)
+
+        # WebSocket upgrades on /ws, /ws/terminal, and /ws/desktop (already authenticated!)
         if method == "GET" and headers.get("upgrade", "").lower() == "websocket":
             if path in {"/ws", "/ws/terminal", "/ws/desktop"}:
-                if not self.is_authorized(headers, query):
-                    await self._send_http_json(writer, HTTPStatus.UNAUTHORIZED, {"error": "Unauthorized"})
+                if path == "/ws/terminal" and not self.use_tls and peer_ip not in {"127.0.0.1", "::1"}:
+                    await self._send_http_json(
+                        writer,
+                        HTTPStatus.FORBIDDEN,
+                        {"error": "Remote terminal requires TLS encryption over non-loopback networks"},
+                    )
                     return
                 if path == "/ws":
                     await self._handle_websocket(reader, writer, headers)
@@ -899,21 +987,31 @@ class OmarchyWizardBridge:
                     await self._handle_desktop_websocket(reader, writer, headers, query)
                 return
 
-        # Read optional HTTP body
-        content_length = int(headers.get("content-length", "0") or "0")
-        body_bytes = b""
-        if content_length > 0:
-            body_bytes = await reader.readexactly(content_length)
+        # Validate Content-Length and enforce strict per-route limits BEFORE buffering
+        raw_cl = headers.get("content-length", "0").strip() or "0"
+        try:
+            content_length = int(raw_cl)
+        except ValueError:
+            await self._send_http_json(writer, HTTPStatus.BAD_REQUEST, {"error": "Invalid Content-Length"})
+            return
+        if content_length < 0:
+            await self._send_http_json(writer, HTTPStatus.BAD_REQUEST, {"error": "Invalid Content-Length"})
+            return
 
-        if path == "/api/ping" and method == "GET":
+        max_body = MAX_UPLOAD_BODY_BYTES if path == "/api/files/upload" else MAX_JSON_BODY_BYTES
+        if content_length > max_body:
             await self._send_http_json(
-                writer, HTTPStatus.OK, {"ok": True, "app": "omalink-bridge"}
+                writer, HTTPStatus.REQUEST_ENTITY_TOO_LARGE, {"error": "Request body too large"}
             )
             return
 
-        if not self.is_authorized(headers, query):
-            await self._send_http_json(writer, HTTPStatus.UNAUTHORIZED, {"error": "Unauthorized"})
-            return
+        body_bytes = b""
+        if content_length > 0:
+            try:
+                body_bytes = await asyncio.wait_for(reader.readexactly(content_length), timeout=20.0)
+            except Exception:
+                await self._send_http_json(writer, HTTPStatus.BAD_REQUEST, {"error": "Incomplete request body"})
+                return
 
         await self._route_http(writer, method, path, query, body_bytes)
 
@@ -1246,11 +1344,14 @@ class OmarchyWizardBridge:
                         "6",
                         "-m",
                         "2",
-                        uri,
+                        stdin=asyncio.subprocess.PIPE,
                         stdout=asyncio.subprocess.PIPE,
                         stderr=asyncio.subprocess.DEVNULL,
                     )
-                    out, _ = await asyncio.wait_for(proc.communicate(), timeout=3.0)
+                    out, _ = await asyncio.wait_for(
+                        proc.communicate(input=uri.encode("utf-8")),
+                        timeout=3.0,
+                    )
                     if proc.returncode == 0 and out:
                         qr_b64 = base64.b64encode(out).decode("ascii")
                 except Exception:
@@ -1488,7 +1589,6 @@ class OmarchyWizardBridge:
             f"Content-Type: {content_type}\r\n"
             f"{disp}"
             f"Content-Length: {len(body)}\r\n"
-            "Access-Control-Allow-Origin: *\r\n"
             "Connection: close\r\n\r\n"
         ).encode("utf-8")
         try:
@@ -1505,7 +1605,6 @@ class OmarchyWizardBridge:
             f"HTTP/1.1 {status.value} {status.phrase}\r\n"
             "Content-Type: application/json; charset=utf-8\r\n"
             f"Content-Length: {len(body)}\r\n"
-            "Access-Control-Allow-Origin: *\r\n"
             "Connection: close\r\n\r\n"
         ).encode("ascii")
         try:
@@ -1527,19 +1626,26 @@ def detect_lan_ips() -> list[str]:
     return ips or ["127.0.0.1"]
 
 
-async def run_server(host: str, port: int, token: str | None, use_tls: bool = False) -> None:
+async def run_server(
+    host: str,
+    port: int,
+    token: str | None,
+    use_tls: bool = True,
+    rotate_token: bool = False,
+) -> None:
+    if rotate_token and not token:
+        token = load_or_create_token(rotate=True)
     bridge = OmarchyWizardBridge(host=host, port=port, token=token, use_tls=use_tls)
     await bridge.start()
     ips = detect_lan_ips()
     scheme = "https" if bridge.use_tls else "http"
-    print("✨ OmaLink Bridge v3.0 is listening!")
-    print(f"   Host/Port : {host}:{bridge.bound_port}")
+    print("✨ OmaLink Bridge v3.4 is listening!")
+    print(f"   Host/Port : {host}:{bridge.bound_port} ({'TLS' if bridge.use_tls else 'INSECURE HTTP'})")
     for ip in ips:
         print(f"   Pair URL  : {scheme}://{ip}:{bridge.bound_port}")
     if bridge.tls_fingerprint:
         print(f"   TLS SHA256: {bridge.tls_fingerprint}")
-    print(f"   Token     : {bridge.token}")
-    print(f"   Pair URI  : {bridge.pairing_uri()}")
+    print(f"   Token File: {get_config_dir() / 'token'} (redacted from logs)")
     print(f"   Agent     : {get_default_agent()} (available: {', '.join(detect_available_agents())})")
 
     stop_event = asyncio.Event()
@@ -1555,9 +1661,25 @@ def main() -> None:
     parser.add_argument("--host", default="0.0.0.0", help="Bind address (default: 0.0.0.0)")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT, help=f"Port (default: {DEFAULT_PORT})")
     parser.add_argument("--token", default=None, help="Explicit bearer token")
-    parser.add_argument("--tls", action="store_true", help="Enable self-signed TLS encryption")
+    parser.add_argument("--tls", action="store_true", help="Enable self-signed TLS encryption (default for non-loopback)")
+    parser.add_argument(
+        "--insecure-http",
+        action="store_true",
+        help="Disable TLS and serve plaintext HTTP (not recommended outside localhost)",
+    )
+    parser.add_argument("--rotate-token", action="store_true", help="Generate a fresh 256-bit bearer token on startup")
     args = parser.parse_args()
-    asyncio.run(run_server(args.host, args.port, args.token, use_tls=args.tls))
+    is_loopback = args.host in {"127.0.0.1", "::1", "localhost"}
+    use_tls = (not args.insecure_http) and (args.tls or not is_loopback)
+    asyncio.run(
+        run_server(
+            args.host,
+            args.port,
+            args.token,
+            use_tls=use_tls,
+            rotate_token=args.rotate_token,
+        )
+    )
 
 
 if __name__ == "__main__":

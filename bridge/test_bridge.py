@@ -135,13 +135,15 @@ class BridgeTests(unittest.TestCase):
             self.assertEqual(code, 200)
             self.assertTrue(status_data["ok"])
             self.assertIn("default_agent", status_data)
+            self.assertNotIn("pair_uri", status_data)
 
-            # Connect WebSocket client
+            # Connect WebSocket client via Authorization header
             ws_reader, ws_writer = await asyncio.open_connection("127.0.0.1", port)
             ws_key = base64.b64encode(os.urandom(16)).decode("ascii")
             handshake = (
-                "GET /ws?token=secret-wizard-token HTTP/1.1\r\n"
+                "GET /ws HTTP/1.1\r\n"
                 f"Host: 127.0.0.1:{port}\r\n"
+                "Authorization: Bearer secret-wizard-token\r\n"
                 "Upgrade: websocket\r\n"
                 "Connection: Upgrade\r\n"
                 f"Sec-WebSocket-Key: {ws_key}\r\n"
@@ -198,20 +200,28 @@ class BridgeTests(unittest.TestCase):
         finally:
             await bridge.stop()
 
-    def test_generated_token_is_five_digits(self) -> None:
+    def test_generated_token_is_strong_and_rotates_legacy_weak_tokens(self) -> None:
         token = generate_pairing_token()
-        self.assertEqual(len(token), 5)
-        self.assertTrue(token.isdigit())
+        self.assertGreaterEqual(len(token), 32)
+        self.assertFalse(token.isdigit())
 
         with tempfile.TemporaryDirectory() as tmpdir:
             with mock.patch.dict(os.environ, {"XDG_CONFIG_HOME": tmpdir}, clear=False):
                 os.environ.pop("OMARCHY_WIZARD_TOKEN", None)
+                os.environ.pop("OMALINK_TOKEN", None)
                 created = load_or_create_token()
-                self.assertEqual(len(created), 5)
-                self.assertTrue(created.isdigit())
+                self.assertGreaterEqual(len(created), 32)
+                self.assertFalse(created.isdigit())
                 token_path = Path(tmpdir) / "omalink" / "token"
                 self.assertEqual(token_path.read_text(encoding="utf-8").strip(), created)
+                self.assertEqual(os.stat(token_path).st_mode & 0o777, 0o600)
                 self.assertEqual(load_or_create_token(), created)
+
+                # A legacy weak 5-digit PIN must be auto-rotated to a strong token
+                token_path.write_text("12345\n", encoding="utf-8")
+                rotated = load_or_create_token()
+                self.assertNotEqual(rotated, "12345")
+                self.assertGreaterEqual(len(rotated), 32)
 
     def test_system_state_and_action_endpoints(self) -> None:
         asyncio.run(self._run_control_and_files_test())
@@ -377,12 +387,13 @@ class BridgeTests(unittest.TestCase):
                 w_bad.close()
                 await w_bad.wait_closed()
 
-                # Connect authenticated terminal WebSocket
+                # Connect authenticated terminal WebSocket via Authorization header
                 ws_reader, ws_writer = await asyncio.open_connection("127.0.0.1", port)
                 ws_key = base64.b64encode(os.urandom(16)).decode("ascii")
                 req = (
-                    f"GET /ws/terminal?cols=100&rows=30&cwd={quote(tmpdir)}&token=term-token HTTP/1.1\r\n"
+                    f"GET /ws/terminal?cols=100&rows=30&cwd={quote(tmpdir)} HTTP/1.1\r\n"
                     f"Host: 127.0.0.1:{port}\r\n"
+                    "Authorization: Bearer term-token\r\n"
                     "Upgrade: websocket\r\n"
                     "Connection: Upgrade\r\n"
                     f"Sec-WebSocket-Key: {ws_key}\r\n"
@@ -478,8 +489,9 @@ class BridgeTests(unittest.TestCase):
                 ws_reader, ws_writer = await asyncio.open_connection("127.0.0.1", port)
                 ws_key = base64.b64encode(os.urandom(16)).decode("ascii")
                 req = (
-                    f"GET /ws/desktop?scale=0.35&quality=60&fps=4&token=desk-token HTTP/1.1\r\n"
+                    f"GET /ws/desktop?scale=0.35&quality=60&fps=4 HTTP/1.1\r\n"
                     f"Host: 127.0.0.1:{port}\r\n"
+                    "Authorization: Bearer desk-token\r\n"
                     "Upgrade: websocket\r\n"
                     "Connection: Upgrade\r\n"
                     f"Sec-WebSocket-Key: {ws_key}\r\n"
@@ -879,6 +891,95 @@ class BridgeTests(unittest.TestCase):
                 await bridge.stop()
 
         asyncio.run(run())
+
+    def test_security_auth_before_body_query_rejection_rate_limit_and_symlinks(self) -> None:
+        import subprocess
+        import omarchy_files
+
+        # 1. Symlink safety: rename & trash act on the symlink itself, NEVER its target!
+        with tempfile.TemporaryDirectory() as tmpdir:
+            base = Path(tmpdir)
+            target_file = base / "important_target.txt"
+            target_file.write_text("DO NOT TOUCH", encoding="utf-8")
+            link_path = base / "my_link.txt"
+            os.symlink(target_file, link_path)
+
+            renamed = omarchy_files.rename_entry_sync(str(link_path), "renamed_link.txt")
+            self.assertTrue(renamed["ok"])
+            new_link = base / "renamed_link.txt"
+            self.assertTrue(new_link.is_symlink())
+            self.assertFalse(os.path.lexists(link_path))
+            self.assertTrue(target_file.exists())
+            self.assertEqual(target_file.read_text(encoding="utf-8"), "DO NOT TOUCH")
+
+            # Verify trash invokes `gio trash -- <symlink_path>` (NOT target_file)
+            called_cmds: list[list[str]] = []
+
+            def fake_run(cmd: list[str], **_kw: object) -> subprocess.CompletedProcess[str]:
+                called_cmds.append(list(cmd))
+                return subprocess.CompletedProcess(cmd, 0, "", "")
+
+            with mock.patch("shutil.which", return_value="/usr/bin/gio"):
+                with mock.patch("subprocess.run", side_effect=fake_run):
+                    trashed = omarchy_files.trash_entry_sync(str(new_link))
+                    self.assertTrue(trashed["ok"])
+            self.assertEqual(called_cmds[0][-1], str(new_link))
+            self.assertNotEqual(called_cmds[0][-1], str(target_file.resolve()))
+            self.assertTrue(target_file.exists())
+
+        # 2. Unauthenticated huge Content-Length rejected IMMEDIATELY without buffering,
+        #    query-string ?token= rejected, and rate-limiter enforces 429
+        async def run_net_checks() -> None:
+            strong_tok = generate_pairing_token()
+            bridge = OmarchyWizardBridge(host="127.0.0.1", port=0, token=strong_tok)
+            await bridge.start()
+            port = bridge.bound_port
+            try:
+                # Query-string token must be rejected
+                r, w = await asyncio.open_connection("127.0.0.1", port)
+                w.write(
+                    f"GET /api/status?token={strong_tok} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\n\r\n".encode()
+                )
+                await w.drain()
+                line = (await asyncio.wait_for(r.readline(), timeout=2.0)).decode()
+                self.assertIn("401", line)
+                w.close()
+                await w.wait_closed()
+
+                # Unauthenticated POST claiming 500 MB body (sending 0 body bytes) must return 401 immediately!
+                r2, w2 = await asyncio.open_connection("127.0.0.1", port)
+                w2.write(
+                    (
+                        f"POST /api/files/upload HTTP/1.1\r\n"
+                        f"Host: 127.0.0.1:{port}\r\n"
+                        "Content-Length: 500000000\r\n\r\n"
+                    ).encode()
+                )
+                await w2.drain()
+                line2 = (await asyncio.wait_for(r2.readline(), timeout=2.0)).decode()
+                self.assertIn("401", line2)
+                w2.close()
+                await w2.wait_closed()
+
+                # Trigger auth rate-limit (429) after repeated failures
+                got_429 = False
+                for _ in range(10):
+                    rr, ww = await asyncio.open_connection("127.0.0.1", port)
+                    ww.write(
+                        f"GET /api/status HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nAuthorization: Bearer wrong\r\n\r\n".encode()
+                    )
+                    await ww.drain()
+                    st = (await asyncio.wait_for(rr.readline(), timeout=2.0)).decode()
+                    ww.close()
+                    await ww.wait_closed()
+                    if "429" in st:
+                        got_429 = True
+                        break
+                self.assertTrue(got_429, "Expected 429 Too Many Requests after repeated failed auth attempts")
+            finally:
+                await bridge.stop()
+
+        asyncio.run(run_net_checks())
 
 
 if __name__ == "__main__":

@@ -36,21 +36,26 @@ Running **Antigravity (`agy`)**, **Claude Code**, **Codex**, **OpenCode**, or **
 
 See [AGENT_INSTALL.md](AGENT_INSTALL.md) for the full deterministic AI agent runbook and troubleshooting guide.
 
-### Option 3 — One-Line Shell Installer
+### Option 3 — Pinned Release Installer
+
+Download and inspect the installer from an immutable release tag (`v3.4.0`), then run it:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/M30W-M1X/omalink/master/install.sh | bash
+curl -fsSLO https://raw.githubusercontent.com/M30W-M1X/omalink/v3.4.0/install.sh
+less install.sh
+bash install.sh --ref v3.4.0
 ```
 
 Useful installer flags:
+- `./install.sh --ref v3.4.0` — pin an immutable Git tag or 40-char commit SHA (default: `v3.4.0`)
 - `./install.sh --json` — machine-readable JSON output (used by AI agents)
 - `./install.sh --check --json` — read-only health, service, plugin & tool diagnostics
-- `./install.sh --tls` — enable self-signed TLS encryption (`https://` / `wss://`)
+- `./install.sh --tls` — enable self-signed TLS 1.2+ with SHA-256 pinning (enabled by default)
 - `./install.sh --port 7842` — customize listen port (default `7842`)
-- `./install.sh --show-pairing` — print the `omalink://pair` URI and terminal QR code
+- `./install.sh --show-pairing` — print the `omalink://pair` URI and terminal QR code locally
 - `./install.sh --uninstall` — cleanly remove the systemd user service and top-bar plugin (add `--purge` to delete `~/.config/omalink`)
 
-No Python pip dependencies are required — the bridge runs on **Python 3.11+ standard library only**.
+No Python pip dependencies are required — the bridge runs on **Python 3.11+ standard library only** and secures LAN traffic by default using **TLS 1.2+ with SHA-256 certificate pinning** and a **256-bit cryptographically random bearer token**.
 
 ---
 

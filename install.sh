@@ -1,12 +1,18 @@
 #!/usr/bin/env bash
 # OmaLink installer for humans and AI coding agents running inside Omarchy Linux.
-# Supports Omarchy Plugin Marketplace installs, local repo installs, and curl-piped installs:
-#   omarchy plugin add https://github.com/M30W-M1X/omalink.git --enable
-#   curl -fsSL https://raw.githubusercontent.com/M30W-M1X/omalink/master/install.sh | bash
+# Defaults to an immutable release tag (v3.4.0) and TLS encryption with SHA-256 pinning.
+#
+# Recommended usage (download, inspect, then run):
+#   curl -fsSLO https://raw.githubusercontent.com/M30W-M1X/omalink/v3.4.0/install.sh
+#   less install.sh
+#   bash install.sh --ref v3.4.0
+#
+# Or from a local checkout (such as `omarchy plugin add`):
 #   ./install.sh --json
 #   ./install.sh --check --json
 set -euo pipefail
 
+DEFAULT_REF="v3.4.0"
 REPO_URL="${OMALINK_REPO:-https://github.com/M30W-M1X/omalink.git}"
 RELEASES_URL="https://github.com/M30W-M1X/omalink/releases/latest"
 SERVICE_NAME="omalink-bridge.service"
@@ -17,11 +23,15 @@ PLUGIN_ID="omalink.panel"
 LEGACY_PLUGIN_ID="wizard.panel"
 PLUGIN_DEST="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/plugins/omalink.panel"
 LEGACY_PLUGIN_DEST="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/plugins/wizard-panel"
-TOKEN_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/omalink/token"
+CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/omalink"
+TOKEN_FILE="$CONFIG_DIR/token"
+CERT_FILE="$CONFIG_DIR/cert.pem"
 
 INSTALL_DIR=""
+GIT_REF="${OMALINK_REF:-$DEFAULT_REF}"
+ALLOW_MUTABLE=0
 PORT=7842
-USE_TLS=0
+USE_TLS=1
 INSTALL_PLUGIN=1
 RESTART_SHELL=1
 CHECK_ONLY=0
@@ -39,8 +49,12 @@ Install, verify, or uninstall the OmaLink companion bridge service and Omarchy t
 Options:
   --dir PATH           Repository/install directory (auto-detected if run from repo;
                        otherwise defaults to ~/.local/share/omalink)
+  --ref TAG_OR_SHA     Immutable git tag (vX.Y.Z) or 40-char commit SHA to install
+                       when cloning remotely (default: v3.4.0)
+  --allow-mutable      Explicitly allow cloning a mutable branch name (not recommended)
   --port PORT          Bridge listen port (default: 7842)
-  --tls                Enable self-signed TLS encryption on the bridge service
+  --tls                Enable self-signed TLS encryption on the bridge service (default)
+  --insecure-http      Disable TLS and use plaintext HTTP (not recommended)
   --no-plugin          Skip installing/enabling the Omarchy top-bar omalink.panel plugin
   --no-restart-shell   Skip restarting omarchy-shell after installing the plugin
   --check              Read-only health & dependency check (no changes made)
@@ -58,12 +72,24 @@ while [[ $# -gt 0 ]]; do
       INSTALL_DIR="${2:?--dir requires a path}"
       shift 2
       ;;
+    --ref)
+      GIT_REF="${2:?--ref requires a tag or commit SHA}"
+      shift 2
+      ;;
+    --allow-mutable)
+      ALLOW_MUTABLE=1
+      shift
+      ;;
     --port)
       PORT="${2:?--port requires a number}"
       shift 2
       ;;
     --tls)
       USE_TLS=1
+      shift
+      ;;
+    --insecure-http)
+      USE_TLS=0
       shift
       ;;
     --no-plugin)
@@ -123,6 +149,20 @@ die() {
   exit 1
 }
 
+validate_ref() {
+  local ref="$1"
+  if [[ "$ALLOW_MUTABLE" -eq 1 ]]; then
+    return 0
+  fi
+  if [[ "$ref" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-.][A-Za-z0-9._-]+)?$ ]]; then
+    return 0
+  fi
+  if [[ "$ref" =~ ^[0-9a-fA-F]{40}$ ]]; then
+    return 0
+  fi
+  die "Refusing to clone mutable ref '$ref'. Pin an immutable release tag (e.g. --ref $DEFAULT_REF) or 40-char commit SHA (or pass --allow-mutable)."
+}
+
 SCRIPT_DIR=""
 if [[ -n "${BASH_SOURCE[0]:-}" && -f "${BASH_SOURCE[0]}" ]]; then
   SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -160,17 +200,31 @@ detect_tailscale_ip() {
 }
 
 check_ping() {
-  local scheme="http"
-  local curl_flags=(-fsS --max-time 2)
-  if [[ "$USE_TLS" -eq 1 ]]; then
-    scheme="https"
-    curl_flags+=(-k)
+  if [[ "$USE_TLS" -eq 1 && -f "$CERT_FILE" ]]; then
+    curl -fsS --max-time 2 --cacert "$CERT_FILE" "https://127.0.0.1:${PORT}/api/ping" >/dev/null 2>&1
+    return $?
   fi
-  curl "${curl_flags[@]}" "${scheme}://127.0.0.1:${PORT}/api/ping" >/dev/null 2>&1
+  if [[ "$USE_TLS" -eq 0 ]]; then
+    curl -fsS --max-time 2 "http://127.0.0.1:${PORT}/api/ping" >/dev/null 2>&1
+    return $?
+  fi
+  return 1
+}
+
+read_cert_fingerprint() {
+  if [[ ! -f "$CERT_FILE" ]]; then
+    return 0
+  fi
+  python3 - "$CERT_FILE" <<'PY'
+import base64, hashlib, sys
+from pathlib import Path
+lines = [l.strip() for l in Path(sys.argv[1]).read_text().splitlines() if l.strip() and not l.startswith("-----")]
+print(hashlib.sha256(base64.b64decode("".join(lines))).hexdigest())
+PY
 }
 
 collect_optional_tools() {
-  local tools=(grim wtype wl-copy avahi-publish qrencode notify-send wpctl brightnessctl busctl gio wf-recorder)
+  local tools=(openssl grim wtype wl-copy avahi-publish qrencode notify-send wpctl brightnessctl busctl gio wf-recorder)
   PRESENT_TOOLS=()
   MISSING_TOOLS=()
   for t in "${tools[@]}"; do
@@ -199,7 +253,7 @@ if [[ "$UNINSTALL" -eq 1 ]]; then
   fi
   rm -rf "$PLUGIN_DEST" "$LEGACY_PLUGIN_DEST"
   if [[ "$PURGE" -eq 1 ]]; then
-    rm -rf "${XDG_CONFIG_HOME:-$HOME/.config}/omalink"
+    rm -rf "$CONFIG_DIR"
   fi
   if [[ "$RESTART_SHELL" -eq 1 && -x "$(command -v omarchy-restart-shell 2>/dev/null || true)" ]]; then
     omarchy-restart-shell >/dev/null 2>&1 || true
@@ -218,7 +272,7 @@ PY
   else
     log "OmaLink uninstalled."
     if [[ "$PURGE" -eq 0 ]]; then
-      log "Note: Pairing token preserved at $TOKEN_FILE (pass --purge to remove)."
+      log "Note: Pairing credentials preserved in $CONFIG_DIR (pass --purge to remove)."
     fi
   fi
   exit 0
@@ -246,6 +300,7 @@ if [[ "$CHECK_ONLY" -eq 1 ]]; then
   [[ -f "$TOKEN_FILE" ]] && TOKEN_EXISTS=1
   LAN_IP="$(detect_lan_ip)"
   TS_IP="$(detect_tailscale_ip)"
+  TLS_FP="$(read_cert_fingerprint)"
   collect_optional_tools
 
   if [[ "$JSON_OUT" -eq 1 ]]; then
@@ -261,6 +316,7 @@ print(json.dumps({
     "bridge_ping_ok": bool($PING_OK),
     "port": $PORT,
     "tls": bool($USE_TLS),
+    "tls_fingerprint": "$TLS_FP" or None,
     "lan_ip": "$LAN_IP",
     "tailscale_ip": "$TS_IP" or None,
     "token_file": "$TOKEN_FILE",
@@ -277,8 +333,11 @@ PY
     log "OmaLink Health Check"
     log "  Install dir:    $INSTALL_DIR"
     log "  Service state:  $SERVICE_STATE ($SERVICE_NAME)"
-    log "  Bridge ping:    $([[ "$PING_OK" -eq 1 ]] && echo OK || echo FAILED) (port $PORT)"
+    log "  Bridge ping:    $([[ "$PING_OK" -eq 1 ]] && echo OK || echo FAILED) (port $PORT, TLS=$USE_TLS)"
     log "  Token file:     $TOKEN_FILE ($([[ "$TOKEN_EXISTS" -eq 1 ]] && echo exists || echo missing))"
+    if [[ -n "$TLS_FP" ]]; then
+      log "  TLS SHA-256:    $TLS_FP"
+    fi
     log "  Top-bar plugin: $PLUGIN_DEST ($([[ "$PLUGIN_INSTALLED" -eq 1 ]] && echo installed || echo missing))"
     log "  LAN IP:         $LAN_IP${TS_IP:+ (Tailscale: $TS_IP)}"
     if [[ "${#MISSING_TOOLS[@]}" -gt 0 ]]; then
@@ -289,20 +348,28 @@ PY
   exit 0
 fi
 
-# 1. Clone or verify repository
+# 1. Clone pinned immutable ref or verify local checkout
 if [[ ! -f "$INSTALL_DIR/bridge/omarchy_wizard_bridge.py" ]]; then
   command -v git >/dev/null 2>&1 || die "git is required to clone $REPO_URL into $INSTALL_DIR"
-  log "Cloning OmaLink into $INSTALL_DIR..."
+  validate_ref "$GIT_REF"
+  log "Cloning OmaLink ($GIT_REF) into $INSTALL_DIR..."
   mkdir -p "$(dirname "$INSTALL_DIR")"
-  git clone --depth 1 "$REPO_URL" "$INSTALL_DIR"
+  if [[ "$GIT_REF" =~ ^[0-9a-fA-F]{40}$ ]]; then
+    git clone --no-checkout "$REPO_URL" "$INSTALL_DIR"
+    git -C "$INSTALL_DIR" fetch --depth 1 origin "$GIT_REF"
+    git -C "$INSTALL_DIR" checkout --detach "$GIT_REF"
+  else
+    git clone --depth 1 --branch "$GIT_REF" "$REPO_URL" "$INSTALL_DIR"
+    git -C "$INSTALL_DIR" checkout --detach HEAD >/dev/null 2>&1 || true
+  fi
 else
-  log "Using OmaLink repository at $INSTALL_DIR"
+  log "Using local OmaLink checkout at $INSTALL_DIR"
 fi
 
 BRIDGE_SCRIPT="$INSTALL_DIR/bridge/omarchy_wizard_bridge.py"
 [[ -f "$BRIDGE_SCRIPT" ]] || die "Bridge script not found at $BRIDGE_SCRIPT"
 
-# 2. Migrate legacy systemd unit cleanly & start omalink-bridge.service
+# 2. Migrate legacy systemd unit cleanly & start omalink-bridge.service (TLS by default)
 log "Configuring systemd user service ($SERVICE_FILE)..."
 mkdir -p "$SERVICE_DIR"
 command -v systemctl >/dev/null 2>&1 || die "systemctl is required to manage the bridge service."
@@ -312,9 +379,9 @@ if [[ -f "$SERVICE_DIR/$LEGACY_SERVICE_NAME" ]]; then
   rm -f "$SERVICE_DIR/$LEGACY_SERVICE_NAME"
 fi
 
-TLS_FLAG=""
-if [[ "$USE_TLS" -eq 1 ]]; then
-  TLS_FLAG=" --tls"
+TLS_FLAG="--tls"
+if [[ "$USE_TLS" -eq 0 ]]; then
+  TLS_FLAG="--insecure-http"
 fi
 
 cat > "$SERVICE_FILE" <<EOF
@@ -325,7 +392,7 @@ After=network-online.target
 [Service]
 Type=simple
 Environment="PATH=%h/.local/share/mise/shims:%h/.local/share/mise/command-wrappers/bin:/usr/share/omarchy/bin:/usr/local/bin:/usr/bin:/bin:%h/.local/bin"
-ExecStart=/usr/bin/python3 ${BRIDGE_SCRIPT} --host 0.0.0.0 --port ${PORT}${TLS_FLAG}
+ExecStart=/usr/bin/python3 ${BRIDGE_SCRIPT} --host 0.0.0.0 --port ${PORT} ${TLS_FLAG}
 Restart=on-failure
 RestartSec=3
 
@@ -350,6 +417,9 @@ if [[ "$PING_OK" -ne 1 ]]; then
   warn "Bridge did not respond on port $PORT within 8s. Check: journalctl --user -u $SERVICE_NAME -n 40"
 fi
 
+if [[ -d "$CONFIG_DIR" ]]; then
+  chmod 700 "$CONFIG_DIR" || true
+fi
 if [[ -f "$TOKEN_FILE" ]]; then
   chmod 600 "$TOKEN_FILE" || true
 fi
@@ -363,7 +433,6 @@ if [[ "$INSTALL_PLUGIN" -eq 1 && -f "$INSTALL_DIR/manifest.json" && -d "$INSTALL
   fi
   rm -rf "$LEGACY_PLUGIN_DEST"
 
-  mkdir -p "$PLUGIN_DEST"
   rm -rf "$PLUGIN_DEST"
   mkdir -p "$PLUGIN_DEST"
   cp "$INSTALL_DIR/manifest.json" "$PLUGIN_DEST/manifest.json"
@@ -406,8 +475,9 @@ fi
 # 4. Collect diagnostics
 LAN_IP="$(detect_lan_ip)"
 TS_IP="$(detect_tailscale_ip)"
-SCHEME="http"
-[[ "$USE_TLS" -eq 1 ]] && SCHEME="https"
+TLS_FP="$(read_cert_fingerprint)"
+SCHEME="https"
+[[ "$USE_TLS" -eq 0 ]] && SCHEME="http"
 SERVICE_STATE="$(systemctl --user is-active "$SERVICE_NAME" 2>/dev/null || echo unknown)"
 collect_optional_tools
 
@@ -426,6 +496,7 @@ payload = {
     "bridge_url": f"$SCHEME://$LAN_IP:$PORT",
     "port": $PORT,
     "tls": bool($USE_TLS),
+    "tls_fingerprint": "$TLS_FP" or None,
     "lan_ip": "$LAN_IP",
     "tailscale_ip": "$TS_IP" or None,
     "token_file": "$TOKEN_FILE",
@@ -449,6 +520,9 @@ log "  Bridge URL:     ${SCHEME}://${LAN_IP}:${PORT}"
 if [[ -n "$TS_IP" ]]; then
   log "  Tailscale URL:  ${SCHEME}://${TS_IP}:${PORT}"
 fi
+if [[ -n "$TLS_FP" ]]; then
+  log "  TLS SHA-256:    ${TLS_FP}"
+fi
 log "  Service state:  ${SERVICE_STATE} (${SERVICE_NAME})"
 log "  Bridge health:  $([[ "$PING_OK" -eq 1 ]] && echo 'OK (/api/ping)' || echo 'FAILED')"
 log "  Top-bar badge:  ${PLUGIN_STATUS} (${PLUGIN_ID} -> ${PLUGIN_DEST})"
@@ -459,27 +533,24 @@ log "Next steps:"
 log "  1. Download and install the latest app-release.apk on Android from:"
 log "     ${RELEASES_URL}"
 log "  2. Click the OmaLink icon in your Omarchy top bar to scan the live pairing QR code."
-log "  3. Or open OmaLink on Android -> Sanctum -> Scan LAN (mDNS) / Paste Pair URI."
+log "  3. Confirm the host & TLS fingerprint dialog on your phone."
 log "  4. If UFW firewall blocks LAN traffic, run: sudo ufw allow ${PORT}/tcp"
 
 if [[ "${#MISSING_TOOLS[@]}" -gt 0 ]]; then
   log ""
   log "Optional host tools not found (some companion features use these):"
   log "  ${MISSING_TOOLS[*]}"
-  log "  Tip: grim + wtype (Remote Desktop/Trackpad), wl-copy (Clipboard Sync),"
-  log "       avahi-publish (LAN Auto-Discovery), qrencode (Top-bar QR), wf-recorder (Screen Record)."
 fi
 
 if [[ "$SHOW_PAIRING" -eq 1 && -f "$TOKEN_FILE" ]]; then
   TOKEN="$(tr -d '[:space:]' < "$TOKEN_FILE")"
-  HOST_NAME="$(hostname)"
-  PAIR_URI="omalink://pair?host=${LAN_IP}&port=${PORT}&token=${TOKEN}&name=${HOST_NAME}&tls=${USE_TLS}"
+  PAIR_URI="omalink://pair?host=${LAN_IP}&port=${PORT}&token=${TOKEN}&tls=${USE_TLS}${TLS_FP:+&fp=${TLS_FP}}${TS_IP:+&ts=${TS_IP}}"
   log ""
   log "Pairing URI (keep private):"
   log "  ${PAIR_URI}"
   if command -v qrencode >/dev/null 2>&1; then
     log ""
-    qrencode -t ANSIUTF8 "$PAIR_URI"
+    printf '%s' "$PAIR_URI" | qrencode -t ANSIUTF8
   fi
 fi
 

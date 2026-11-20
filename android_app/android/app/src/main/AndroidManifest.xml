@@ -160,6 +160,10 @@
                 android:resource="@xml/wizard_widget_info" />
         </receiver>
 
+        <receiver
+            android:name=".WidgetActionReceiver"
+            android:exported="false" />
+
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />

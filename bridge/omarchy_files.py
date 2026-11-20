@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import shutil
 import subprocess
 from datetime import datetime, timezone
@@ -42,6 +43,22 @@ def _resolve_existing_path(raw_path: str | None, *, fallback_home: bool = False)
     return target
 
 
+def _resolve_entry_no_follow(raw_path: str) -> Path:
+    """Resolve parent directory canonically WITHOUT following a final symlink component."""
+    cleaned = raw_path.strip()
+    if not cleaned:
+        raise ValueError("Path is required")
+    stripped = cleaned.rstrip("/")
+    if not stripped:
+        return Path("/")
+    expanded = Path(stripped).expanduser()
+    name = expanded.name
+    if not name or name in {".", ".."}:
+        raise ValueError("Invalid target entry name")
+    parent = expanded.parent.resolve(strict=True)
+    return parent / name
+
+
 def _safe_child_name(name: str) -> str:
     cleaned = name.strip()
     if not cleaned or cleaned in {".", ".."} or "/" in cleaned or "\\" in cleaned or "\x00" in cleaned:
@@ -52,8 +69,8 @@ def _safe_child_name(name: str) -> str:
 def _format_entry(entry: Path) -> dict[str, Any]:
     is_symlink = entry.is_symlink()
     try:
-        st = entry.stat()
-        is_dir = entry.is_dir()
+        st = entry.lstat() if is_symlink else entry.stat()
+        is_dir = False if is_symlink else entry.is_dir()
         size = 0 if is_dir else st.st_size
         modified = datetime.fromtimestamp(st.st_mtime, tz=timezone.utc).isoformat()
     except OSError:
@@ -157,12 +174,12 @@ def create_directory_sync(parent_path: str, name: str) -> dict[str, Any]:
 
 
 def rename_entry_sync(raw_path: str, new_name: str) -> dict[str, Any]:
-    target = _resolve_existing_path(raw_path)
-    if not target.exists():
+    target = _resolve_entry_no_follow(raw_path)
+    if not os.path.lexists(target):
         raise FileNotFoundError(f"Entry not found: {raw_path}")
     safe_name = _safe_child_name(new_name)
     dest = target.parent / safe_name
-    if dest.exists():
+    if os.path.lexists(dest):
         raise FileExistsError(f"Destination already exists: {dest.name}")
     target.rename(dest)
     return {"ok": True, "entry": _format_entry(dest)}
@@ -183,14 +200,14 @@ def open_on_desktop_sync(raw_path: str) -> dict[str, Any]:
 
 
 def trash_entry_sync(raw_path: str) -> dict[str, Any]:
-    target = _resolve_existing_path(raw_path)
-    if not target.exists():
+    target = _resolve_entry_no_follow(raw_path)
+    if not os.path.lexists(target):
         raise FileNotFoundError(f"Entry not found: {raw_path}")
     if target == Path.home().resolve() or target == Path("/"):
         raise ValueError("Refusing to trash root or home directory")
     if not shutil.which("gio"):
         raise RuntimeError("gio trash is unavailable on this host")
-    res = subprocess.run(["gio", "trash", str(target)], capture_output=True, text=True, timeout=5.0)
+    res = subprocess.run(["gio", "trash", "--", str(target)], capture_output=True, text=True, timeout=5.0)
     if res.returncode != 0:
         raise RuntimeError(res.stderr.strip() or "Failed to move item to Trash")
     return {"ok": True, "message": f"Moved {target.name} to Trash"}

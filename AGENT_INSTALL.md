@@ -29,18 +29,19 @@ Requirements:
 - **Python 3.11+** (the bridge uses pure Python standard library — **no `pip install` or venv required**).
 - `systemd --user` active session.
 
-### Step 2 — Run the Non-Interactive Installer
+### Step 2 — Run the Non-Interactive Installer (Pinned Immutable Release)
 
 ```bash
-# Option A: Direct one-liner (clones to ~/.local/share/omalink if not already in repo)
-curl -fsSL https://raw.githubusercontent.com/M30W-M1X/omalink/master/install.sh | bash -s -- --json
+# Option A: Download, inspect, and run from an immutable release tag
+curl -fsSLO https://raw.githubusercontent.com/M30W-M1X/omalink/v3.4.0/install.sh
+bash install.sh --ref v3.4.0 --json
 
 # Option B: Install as an Omarchy Plugin Marketplace git plugin
 omarchy plugin add https://github.com/M30W-M1X/omalink.git --enable --yes
 ~/.config/omarchy/plugins/omalink.panel/install.sh --no-plugin --no-restart-shell --json
 
-# Option C: From an existing clone
-git clone https://github.com/M30W-M1X/omalink.git ~/.local/share/omalink
+# Option C: From a pinned local tag checkout
+git clone --depth 1 --branch v3.4.0 https://github.com/M30W-M1X/omalink.git ~/.local/share/omalink
 cd ~/.local/share/omalink
 ./install.sh --json
 ```

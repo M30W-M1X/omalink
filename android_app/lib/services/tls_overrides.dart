@@ -73,24 +73,58 @@ String sha256Hex(Uint8List input) {
   return words.map((v) => (v & 0xffffffff).toRadixString(16).padLeft(8, '0')).join();
 }
 
+final RegExp _sha256HexPattern = RegExp(r'^[0-9a-f]{64}$');
+
+bool _constantTimeEquals(String a, String b) {
+  if (a.length != b.length) return false;
+  var diff = 0;
+  for (var i = 0; i < a.length; i++) {
+    diff |= a.codeUnitAt(i) ^ b.codeUnitAt(i);
+  }
+  return diff == 0;
+}
+
+/// Strictly verifies a self-signed certificate against an exact host, optional port,
+/// and non-empty 64-hex-character SHA-256 DER fingerprint.
+bool verifyPinnedCertificate({
+  required Uint8List derBytes,
+  required String host,
+  required int port,
+  required String allowedHost,
+  int? allowedPort,
+  required String pinnedSha256,
+}) {
+  if (allowedHost.trim().isEmpty || host != allowedHost.trim()) return false;
+  if (allowedPort != null && port != allowedPort) return false;
+  final expected = pinnedSha256.trim().toLowerCase();
+  if (!_sha256HexPattern.hasMatch(expected)) return false;
+  final actual = sha256Hex(derBytes);
+  return _constantTimeEquals(actual, expected);
+}
+
 class WizardTlsOverrides extends HttpOverrides {
   WizardTlsOverrides({
     required this.allowedHost,
     required this.pinnedSha256,
+    this.allowedPort,
   });
 
   final String allowedHost;
   final String pinnedSha256;
+  final int? allowedPort;
 
   @override
   HttpClient createHttpClient(SecurityContext? context) {
     final client = super.createHttpClient(context);
     client.badCertificateCallback = (X509Certificate cert, String host, int port) {
-      if (host != allowedHost) return false;
-      final expected = pinnedSha256.trim().toLowerCase();
-      if (expected.isEmpty) return true;
-      final actual = sha256Hex(cert.der);
-      return actual == expected;
+      return verifyPinnedCertificate(
+        derBytes: cert.der,
+        host: host,
+        port: port,
+        allowedHost: allowedHost,
+        allowedPort: allowedPort,
+        pinnedSha256: pinnedSha256,
+      );
     };
     return client;
   }

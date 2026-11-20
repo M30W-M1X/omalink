@@ -192,5 +192,22 @@ void main() {
     await tester.tap(find.byTooltip('Presentation Mode'));
     await tester.pump(const Duration(milliseconds: 200));
     expect(find.text('NEXT SLIDE'), findsOneWidget);
+
+    // Incoming pairing URI must prompt for explicit confirmation and NEVER silently overwrite host
+    final originalHost = client.settings.host;
+    final queued = client.queuePairingUri(
+      'omalink://pair?host=10.0.0.99&port=7842&token=supersecretlongtoken1234567890&tls=1&fp=${'a' * 64}',
+    );
+    expect(queued, isTrue);
+    expect(client.settings.host, originalHost);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(find.text('Pair with New Omarchy Host?'), findsOneWidget);
+    expect(find.text('Host: 10.0.0.99:7842'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(client.settings.host, originalHost);
+    expect(client.pendingPairing, isNull);
   });
 }

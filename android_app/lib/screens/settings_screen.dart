@@ -95,28 +95,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _pastePairUri() async {
     final clip = await Clipboard.getData(Clipboard.kTextPlain);
     final raw = clip?.text?.trim() ?? '';
-    final ok = await widget.client.applyPairingUri(raw);
+    final ok = widget.client.queuePairingUri(raw);
     if (!mounted) return;
-    if (ok) {
-      final s = widget.client.settings;
-      setState(() {
-        _hostController.text = s.host;
-        _portController.text = s.port.toString();
-        _tokenController.text = s.token;
-        _fpController.text = s.tlsFingerprint;
-        _useTls = s.useTls;
-        _demoMode = false;
-      });
-    }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          ok
-              ? 'Paired via omalink:// URI ✨'
-              : 'Copy an omalink://pair?... URI or scan the OmaLink top-bar QR.',
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Copy an omalink://pair?... URI or scan the OmaLink top-bar QR.',
+          ),
         ),
-      ),
-    );
+      );
+    }
   }
 
   @override

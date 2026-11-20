@@ -163,10 +163,69 @@ void main() {
     expect(WizardTheme.fromPalette(latte).brightness.name, 'light');
   });
 
-  test('sha256Hex matches standard NIST vector and AgentUsageInfo parses limits', () {
+  test('sha256Hex matches standard NIST vector and strict TLS pinning rejects empty or mismatched pins', () {
+    final sampleDer = Uint8List.fromList(utf8.encode('abc'));
+    const validSha =
+        'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad';
+    expect(sha256Hex(sampleDer), validSha);
+
+    // Empty or malformed fingerprint must NEVER be accepted
     expect(
-      sha256Hex(Uint8List.fromList(utf8.encode('abc'))),
-      'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad',
+      verifyPinnedCertificate(
+        derBytes: sampleDer,
+        host: '192.168.1.50',
+        port: 7842,
+        allowedHost: '192.168.1.50',
+        allowedPort: 7842,
+        pinnedSha256: '',
+      ),
+      isFalse,
+    );
+    expect(
+      verifyPinnedCertificate(
+        derBytes: sampleDer,
+        host: '192.168.1.50',
+        port: 7842,
+        allowedHost: '192.168.1.50',
+        allowedPort: 7842,
+        pinnedSha256: 'deadbeef',
+      ),
+      isFalse,
+    );
+    // Mismatched host or port must be rejected even with matching SHA-256
+    expect(
+      verifyPinnedCertificate(
+        derBytes: sampleDer,
+        host: '192.168.1.99',
+        port: 7842,
+        allowedHost: '192.168.1.50',
+        allowedPort: 7842,
+        pinnedSha256: validSha,
+      ),
+      isFalse,
+    );
+    expect(
+      verifyPinnedCertificate(
+        derBytes: sampleDer,
+        host: '192.168.1.50',
+        port: 9999,
+        allowedHost: '192.168.1.50',
+        allowedPort: 7842,
+        pinnedSha256: validSha,
+      ),
+      isFalse,
+    );
+    // Exact host + port + 64-hex SHA-256 pin succeeds
+    expect(
+      verifyPinnedCertificate(
+        derBytes: sampleDer,
+        host: '192.168.1.50',
+        port: 7842,
+        allowedHost: '192.168.1.50',
+        allowedPort: 7842,
+        pinnedSha256: validSha,
+      ),
+      isTrue,
     );
     final usage = AgentUsageInfo.fromJson({
       'id': 'agy',

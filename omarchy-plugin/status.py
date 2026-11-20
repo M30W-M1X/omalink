@@ -4,29 +4,37 @@
 from __future__ import annotations
 
 import argparse
+import base64
+import hashlib
 import json
 import os
 from pathlib import Path
 import shutil
 import socket
+import ssl
 import subprocess
 import sys
 import time
 from urllib import error, request
+from urllib.parse import quote
 
 DEFAULT_PORT = 7842
 SERVICE_UNIT = "omalink-bridge.service"
 LEGACY_SERVICE_UNIT = "omarchy-wizard-bridge.service"
 
 
-def get_token_path() -> Path:
+def get_config_dir() -> Path:
     xdg = os.environ.get("XDG_CONFIG_HOME")
     base = Path(xdg) if xdg else Path.home() / ".config"
-    primary = base / "omalink" / "token"
-    legacy = base / "omarchy-wizard" / "token"
-    if primary.exists() or not legacy.exists():
-        return primary
-    return legacy
+    return base / "omalink"
+
+
+def get_token_path() -> Path:
+    return get_config_dir() / "token"
+
+
+def get_cert_path() -> Path:
+    return get_config_dir() / "cert.pem"
 
 
 def read_token() -> str:
@@ -34,6 +42,34 @@ def read_token() -> str:
     if p.exists():
         return p.read_text(encoding="utf-8", errors="replace").strip()
     return ""
+
+
+def read_cert_fingerprint() -> str:
+    cert_path = get_cert_path()
+    if not cert_path.is_file():
+        return ""
+    try:
+        pem_lines = [
+            ln.strip()
+            for ln in cert_path.read_text(encoding="utf-8").splitlines()
+            if ln.strip() and not ln.startswith("-----")
+        ]
+        der = base64.b64decode("".join(pem_lines))
+        return hashlib.sha256(der).hexdigest()
+    except Exception:
+        return ""
+
+
+def build_local_ssl_context() -> ssl.SSLContext | None:
+    cert_path = get_cert_path()
+    if not cert_path.is_file():
+        return None
+    try:
+        ctx = ssl.create_default_context(cafile=str(cert_path))
+        ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+        return ctx
+    except Exception:
+        return None
 
 
 def detect_lan_ip() -> str:
@@ -47,16 +83,43 @@ def detect_lan_ip() -> str:
         return "127.0.0.1"
 
 
-def fetch_json(url: str, token: str) -> dict | None:
+def _local_request(
+    port: int,
+    path: str,
+    token: str,
+    *,
+    method: str = "GET",
+    payload: dict | None = None,
+    timeout: float = 1.5,
+) -> tuple[dict | None, bool]:
+    """Query the local loopback bridge, preferring strictly verified TLS over cert.pem."""
     headers = {"Authorization": f"Bearer {token}"} if token else {}
-    req = request.Request(url, headers=headers, method="GET")
-    try:
-        with request.urlopen(req, timeout=1.2) as resp:
-            raw = resp.read(256 * 1024).decode("utf-8", errors="replace")
-            data = json.loads(raw)
-            return data if isinstance(data, dict) else None
-    except (error.URLError, error.HTTPError, TimeoutError, json.JSONDecodeError, OSError):
-        return None
+    data: bytes | None = None
+    if payload is not None:
+        headers["Content-Type"] = "application/json"
+        data = json.dumps(payload).encode("utf-8")
+
+    ctx = build_local_ssl_context()
+    attempts: list[tuple[str, ssl.SSLContext | None]] = []
+    if ctx is not None:
+        attempts.append(("https", ctx))
+    attempts.append(("http", None))
+
+    for scheme, ssl_ctx in attempts:
+        req = request.Request(
+            f"{scheme}://127.0.0.1:{port}{path}",
+            data=data,
+            headers=headers,
+            method=method,
+        )
+        try:
+            with request.urlopen(req, timeout=timeout, context=ssl_ctx) as resp:
+                raw = resp.read(256 * 1024).decode("utf-8", errors="replace")
+                parsed = json.loads(raw)
+                return (parsed if isinstance(parsed, dict) else None), (scheme == "https")
+        except (error.URLError, error.HTTPError, TimeoutError, json.JSONDecodeError, OSError, ssl.SSLError):
+            continue
+    return None, False
 
 
 def service_unit_path(name: str = SERVICE_UNIT) -> Path:
@@ -79,7 +142,7 @@ def find_bridge_script() -> Path | None:
 
 
 def ensure_service_installed(port: int) -> bool:
-    """Create and enable omalink-bridge.service automatically when installed via `omarchy plugin add`."""
+    """Create and enable omalink-bridge.service (TLS enabled by default)."""
     unit = service_unit_path(SERVICE_UNIT)
     if unit.exists():
         return True
@@ -94,7 +157,7 @@ def ensure_service_installed(port: int) -> bool:
         "[Service]\n"
         "Type=simple\n"
         'Environment="PATH=%h/.local/share/mise/shims:%h/.local/share/mise/command-wrappers/bin:/usr/share/omarchy/bin:/usr/local/bin:/usr/bin:/bin:%h/.local/bin"\n'
-        f"ExecStart=/usr/bin/python3 {bridge_script} --host 0.0.0.0 --port {port}\n"
+        f"ExecStart=/usr/bin/python3 {bridge_script} --host 0.0.0.0 --port {port} --tls\n"
         "Restart=on-failure\n"
         "RestartSec=3\n\n"
         "[Install]\n"
@@ -119,48 +182,68 @@ def copy_to_clipboard(text: str) -> bool:
     return False
 
 
-def post_json(url: str, token: str, payload: dict) -> dict | None:
-    headers = {"Content-Type": "application/json"}
-    if token:
-        headers["Authorization"] = f"Bearer {token}"
-    data = json.dumps(payload).encode("utf-8")
-    req = request.Request(url, data=data, headers=headers, method="POST")
+def _private_qr_path() -> Path:
+    runtime = os.environ.get("XDG_RUNTIME_DIR")
+    base = Path(runtime) / "omalink" if runtime else get_config_dir()
+    base.mkdir(parents=True, exist_ok=True)
     try:
-        with request.urlopen(req, timeout=2.0) as resp:
-            raw = resp.read(128 * 1024).decode("utf-8", errors="replace")
-            out = json.loads(raw)
-            return out if isinstance(out, dict) else None
-    except (error.URLError, error.HTTPError, TimeoutError, json.JSONDecodeError, OSError):
-        return None
+        os.chmod(base, 0o700)
+    except OSError:
+        pass
+    return base / "pair-qr.png"
 
 
 def generate_qr_png(pair_uri: str) -> str:
+    """Write pairing QR PNG into a private 0700 directory (0600 file), piping secret via stdin."""
     if not pair_uri or not shutil.which("qrencode"):
         return ""
-    out_path = Path(f"/tmp/omalink-pair-qr-{os.getuid()}.png")
+    out_path = _private_qr_path()
     try:
-        subprocess.run(
-            ["qrencode", "-o", str(out_path), "-s", "6", "-m", "2", pair_uri],
+        proc = subprocess.run(
+            ["qrencode", "-o", "-", "-s", "6", "-m", "2"],
+            input=pair_uri.encode("utf-8"),
+            capture_output=True,
             check=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
             timeout=3,
         )
+        fd = os.open(str(out_path), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        try:
+            os.write(fd, proc.stdout)
+        finally:
+            os.close(fd)
+        os.chmod(out_path, 0o600)
         return str(out_path)
     except Exception:
         return ""
 
 
+def _build_local_pair_uri(port: int, token: str, use_tls: bool, tls_fp: str, ts_ip: str = "") -> str:
+    lan_ip = detect_lan_ip()
+    params = [
+        f"host={quote(lan_ip)}",
+        f"port={port}",
+        f"token={quote(token)}",
+        f"tls={'1' if use_tls else '0'}",
+    ]
+    if tls_fp:
+        params.append(f"fp={quote(tls_fp)}")
+    if ts_ip:
+        params.append(f"ts={quote(ts_ip)}")
+    return f"omalink://pair?{'&'.join(params)}"
+
+
 def get_status(port: int) -> dict:
     token = read_token()
     lan_ip = detect_lan_ip()
-    pair_url = f"http://{lan_ip}:{port}"
-    status_data = fetch_json(f"http://127.0.0.1:{port}/api/status", token)
+    status_data, used_tls = _local_request(port, "/api/status", token)
     active = bool(status_data and status_data.get("ok"))
+    is_tls = bool(status_data.get("tls", used_tls)) if status_data else used_tls
+    scheme = "https" if is_tls else "http"
+    pair_url = f"{scheme}://{lan_ip}:{port}"
 
     tasks: list[dict] = []
     if active:
-        tasks_data = fetch_json(f"http://127.0.0.1:{port}/api/tasks", token)
+        tasks_data, _ = _local_request(port, "/api/tasks", token)
         raw_tasks = tasks_data.get("tasks", []) if tasks_data else []
         if isinstance(raw_tasks, list):
             for item in raw_tasks[:4]:
@@ -175,14 +258,19 @@ def get_status(port: int) -> dict:
 
     phone = status_data.get("phone") if (status_data and isinstance(status_data.get("phone"), dict)) else {}
     replyable = status_data.get("replyable_notification") if status_data else None
-    pair_uri = str(status_data.get("pair_uri", "")) if status_data else ""
-    qr_path = generate_qr_png(pair_uri) if active and pair_uri else ""
+    tls_fp = str(status_data.get("tls_fingerprint", "") or read_cert_fingerprint()) if status_data else ""
+    ts_ip = str(status_data.get("tailscale_ip", "") or "") if status_data else ""
+    qr_path = ""
+    if active and token:
+        pair_uri = _build_local_pair_uri(port, token, is_tls, tls_fp, ts_ip)
+        qr_path = generate_qr_png(pair_uri)
 
+    # Never emit raw secret token or pairUri containing token on stdout!
     return {
         "active": active,
+        "tls": is_tls,
         "hasToken": bool(token),
         "pairUrl": pair_url,
-        "pairUri": pair_uri,
         "qrPath": qr_path,
         "port": port,
         "defaultAgent": str(status_data.get("default_agent", "agy"))[:24] if status_data else "agy",
@@ -201,7 +289,6 @@ def toggle_bridge(state: str, port: int) -> dict:
 
     if state == "on":
         if shutil.which("systemctl"):
-            # Stop legacy unit cleanly if migrating
             if service_unit_path(LEGACY_SERVICE_UNIT).exists():
                 subprocess.run(
                     ["systemctl", "--user", "disable", "--now", LEGACY_SERVICE_UNIT],
@@ -212,21 +299,20 @@ def toggle_bridge(state: str, port: int) -> dict:
                 subprocess.run(["systemctl", "--user", "start", SERVICE_UNIT], check=False, timeout=5)
             elif bridge_script:
                 subprocess.Popen(
-                    [sys.executable, str(bridge_script), "--host", "0.0.0.0", "--port", str(port)],
+                    [sys.executable, str(bridge_script), "--host", "0.0.0.0", "--port", str(port), "--tls"],
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                     start_new_session=True,
                 )
         elif bridge_script:
             subprocess.Popen(
-                [sys.executable, str(bridge_script), "--host", "0.0.0.0", "--port", str(port)],
+                [sys.executable, str(bridge_script), "--host", "0.0.0.0", "--port", str(port), "--tls"],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 start_new_session=True,
             )
 
-        # Wait briefly so the returned snapshot already includes active status + QR code
-        for _ in range(10):
+        for _ in range(12):
             snap = get_status(port)
             if snap.get("active"):
                 return snap
@@ -254,27 +340,37 @@ def main() -> None:
     parser.add_argument("--reply-text", default="")
     args = parser.parse_args()
 
+    token = read_token()
+
     if args.ring:
-        res = post_json(f"http://127.0.0.1:{args.port}/api/continuity/ring", read_token(), {"duration": 12})
+        res, _ = _local_request(
+            args.port, "/api/continuity/ring", token, method="POST", payload={"duration": 12}, timeout=2.0
+        )
         print(json.dumps({"action": "ring", "ok": bool(res and res.get("ok"))}))
         return
 
     if args.reply_id and args.reply_text:
-        res = post_json(
-            f"http://127.0.0.1:{args.port}/api/continuity/reply",
-            read_token(),
-            {"reply_id": args.reply_id, "text": args.reply_text},
+        res, _ = _local_request(
+            args.port,
+            "/api/continuity/reply",
+            token,
+            method="POST",
+            payload={"reply_id": args.reply_id, "text": args.reply_text},
+            timeout=2.0,
         )
         print(json.dumps({"action": "reply", "ok": bool(res and res.get("ok"))}))
         return
 
     if args.copy_url:
-        ok = copy_to_clipboard(f"http://{detect_lan_ip()}:{args.port}")
+        status_data, used_tls = _local_request(args.port, "/api/status", token)
+        is_tls = bool(status_data.get("tls", used_tls)) if status_data else get_cert_path().is_file()
+        scheme = "https" if is_tls else "http"
+        ok = copy_to_clipboard(f"{scheme}://{detect_lan_ip()}:{args.port}")
         print(json.dumps({"copied": "url" if ok else ""}))
         return
 
     if args.copy_token:
-        ok = copy_to_clipboard(read_token())
+        ok = copy_to_clipboard(token)
         print(json.dumps({"copied": "token" if ok else ""}))
         return
 

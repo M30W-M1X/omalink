@@ -24,6 +24,49 @@ enum BridgeConnectionState {
   demo,
 }
 
+class PendingPairingRequest {
+  const PendingPairingRequest({
+    required this.host,
+    required this.port,
+    required this.token,
+    required this.useTls,
+    required this.tlsFingerprint,
+    this.tailscaleHost = '',
+  });
+
+  final String host;
+  final int port;
+  final String token;
+  final bool useTls;
+  final String tlsFingerprint;
+  final String tailscaleHost;
+}
+
+class PendingShareRequest {
+  const PendingShareRequest.text({
+    required this.text,
+    this.subject = '',
+    this.packageName = '',
+  })  : isFile = false,
+        filename = '',
+        dataBase64 = '';
+
+  const PendingShareRequest.file({
+    required this.filename,
+    required this.dataBase64,
+  })  : isFile = true,
+        text = '',
+        subject = '',
+        packageName = '';
+
+  final bool isFile;
+  final String text;
+  final String subject;
+  final String packageName;
+  final String filename;
+  final String dataBase64;
+}
+
 class BridgeClient extends ChangeNotifier {
   BridgeClient({
     SettingsStore? settingsStore,
@@ -162,12 +205,19 @@ class BridgeClient extends ChangeNotifier {
     if (_settings.useTls && !_settings.demoMode && _settings.host.isNotEmpty) {
       HttpOverrides.global = WizardTlsOverrides(
         allowedHost: _settings.host,
+        allowedPort: _settings.port,
         pinnedSha256: _settings.tlsFingerprint,
       );
     } else {
       HttpOverrides.global = null;
     }
   }
+
+  PendingPairingRequest? _pendingPairing;
+  PendingPairingRequest? get pendingPairing => _pendingPairing;
+
+  PendingShareRequest? _pendingShare;
+  PendingShareRequest? get pendingShare => _pendingShare;
   final Set<String> _notifiedTaskIds = <String>{};
   bool _disposed = false;
 
@@ -285,19 +335,17 @@ class BridgeClient extends ChangeNotifier {
         await ContinuityService.instance.isNotificationListenerEnabled();
     ContinuityService.instance.startListening(
       onShare: (share) {
-        unawaited(
-          handoffToOmarchy(
-            text: share.text,
-            subject: share.subject,
-            packageName: share.packageName,
-          ),
+        queueIncomingShare(
+          text: share.text,
+          subject: share.subject,
+          packageName: share.packageName,
         );
       },
       onFileShare: (fileShare) {
-        unawaited(uploadSharedFile(fileShare.filename, fileShare.dataBase64));
+        queueIncomingFileShare(fileShare.filename, fileShare.dataBase64);
       },
       onPairUri: (pairUri) {
-        unawaited(applyPairingUri(pairUri));
+        queuePairingUri(pairUri);
       },
       onRelayedNotification: (relayed) {
         _continuityActivity.insert(0, {
@@ -319,7 +367,7 @@ class BridgeClient extends ChangeNotifier {
 
     final initialPairUri = await ContinuityService.instance.consumePendingPairUri();
     if (initialPairUri != null) {
-      unawaited(applyPairingUri(initialPairUri));
+      queuePairingUri(initialPairUri);
     }
 
     final initialShareRaw = await ContinuityService.instance.consumePendingShareRaw();
@@ -328,22 +376,18 @@ class BridgeClient extends ChangeNotifier {
       if (ev == 'share_file') {
         final b64 = initialShareRaw['dataBase64']?.toString() ?? '';
         if (b64.isNotEmpty) {
-          unawaited(
-            uploadSharedFile(
-              initialShareRaw['filename']?.toString() ?? 'shared_file',
-              b64,
-            ),
+          queueIncomingFileShare(
+            initialShareRaw['filename']?.toString() ?? 'shared_file',
+            b64,
           );
         }
       } else {
         final txt = initialShareRaw['text']?.toString() ?? '';
         if (txt.isNotEmpty) {
-          unawaited(
-            handoffToOmarchy(
-              text: txt,
-              subject: initialShareRaw['subject']?.toString() ?? '',
-              packageName: initialShareRaw['packageName']?.toString() ?? '',
-            ),
+          queueIncomingShare(
+            text: txt,
+            subject: initialShareRaw['subject']?.toString() ?? '',
+            packageName: initialShareRaw['packageName']?.toString() ?? '',
           );
         }
       }
@@ -512,9 +556,7 @@ class BridgeClient extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final uri = Uri.parse(_settings.wsUrl).replace(
-        queryParameters: {'token': _settings.token},
-      );
+      final uri = Uri.parse(_settings.wsUrl);
       _ws = await WebSocket.connect(
         uri.toString(),
         headers: {'Authorization': 'Bearer ${_settings.token}'},
@@ -1453,7 +1495,9 @@ class BridgeClient extends ChangeNotifier {
     }
   }
 
-  Future<bool> applyPairingUri(String rawUri) async {
+  /// Parse and stage an incoming pairing URI for explicit user confirmation.
+  /// Never silently replaces the configured bridge destination or redirects notifications.
+  bool queuePairingUri(String rawUri) {
     final parsed = Uri.tryParse(rawUri.trim());
     if (parsed == null || (parsed.scheme != 'omalink' && parsed.scheme != 'omarchy-wizard')) {
       return false;
@@ -1461,23 +1505,89 @@ class BridgeClient extends ChangeNotifier {
     final host = parsed.queryParameters['host']?.trim() ?? '';
     final port = int.tryParse(parsed.queryParameters['port'] ?? '') ?? 7842;
     final token = parsed.queryParameters['token']?.trim() ?? '';
-    final tls = parsed.queryParameters['tls'] == '1';
-    final fp = parsed.queryParameters['fp']?.trim() ?? '';
+    final tls = parsed.queryParameters['tls'] != '0';
+    final fp = parsed.queryParameters['fp']?.trim().toLowerCase() ?? '';
     final ts = parsed.queryParameters['ts']?.trim() ?? '';
-    if (host.isEmpty) return false;
+    if (host.isEmpty || port < 1 || port > 65535 || token.isEmpty) return false;
 
-    final next = _settings.copyWith(
+    _pendingPairing = PendingPairingRequest(
       host: host,
       port: port,
       token: token,
-      demoMode: false,
       useTls: tls,
       tlsFingerprint: fp,
-      tailscaleHost: ts.isNotEmpty ? ts : _settings.tailscaleHost,
+      tailscaleHost: ts,
     );
-    _continuityBanner = '✨ Paired with $host:$port${tls ? ' (TLS)' : ''}';
+    notifyListeners();
+    return true;
+  }
+
+  void dismissPendingPairing() {
+    if (_pendingPairing == null) return;
+    _pendingPairing = null;
+    notifyListeners();
+  }
+
+  Future<bool> confirmPendingPairing() async {
+    final req = _pendingPairing;
+    if (req == null) return false;
+    _pendingPairing = null;
+    final next = _settings.copyWith(
+      host: req.host,
+      port: req.port,
+      token: req.token,
+      demoMode: false,
+      useTls: req.useTls,
+      tlsFingerprint: req.tlsFingerprint,
+      tailscaleHost: req.tailscaleHost.isNotEmpty ? req.tailscaleHost : _settings.tailscaleHost,
+    );
+    _continuityBanner = '✨ Paired with ${req.host}:${req.port}${req.useTls ? ' (TLS)' : ''}';
     await updateSettings(next);
     return true;
+  }
+
+  void queueIncomingShare({
+    required String text,
+    String subject = '',
+    String packageName = '',
+  }) {
+    if (text.trim().isEmpty) return;
+    _pendingShare = PendingShareRequest.text(
+      text: text.trim(),
+      subject: subject.trim(),
+      packageName: packageName.trim(),
+    );
+    notifyListeners();
+  }
+
+  void queueIncomingFileShare(String filename, String dataBase64) {
+    if (dataBase64.isEmpty) return;
+    _pendingShare = PendingShareRequest.file(
+      filename: filename.trim().isEmpty ? 'shared_file' : filename.trim(),
+      dataBase64: dataBase64,
+    );
+    notifyListeners();
+  }
+
+  void dismissPendingShare() {
+    if (_pendingShare == null) return;
+    _pendingShare = null;
+    notifyListeners();
+  }
+
+  Future<bool> confirmPendingShare() async {
+    final req = _pendingShare;
+    if (req == null) return false;
+    _pendingShare = null;
+    notifyListeners();
+    if (req.isFile) {
+      return uploadSharedFile(req.filename, req.dataBase64);
+    }
+    return handoffToOmarchy(
+      text: req.text,
+      subject: req.subject,
+      packageName: req.packageName,
+    );
   }
 
   Future<List<DiscoveredBridge>> discoverLanBridges() async {
