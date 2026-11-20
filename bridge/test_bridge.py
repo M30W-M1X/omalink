@@ -1015,6 +1015,80 @@ class BridgeTests(unittest.TestCase):
                 self.assertFalse(used_tls)
                 self.assertEqual(seen_urls, ["https://127.0.0.1:7842/api/status"])
 
+    def test_push_clipboard_no_history_fallback_and_single_target(self) -> None:
+        async def run_clip_checks() -> None:
+            tok = generate_pairing_token()
+            bridge = OmarchyWizardBridge(host="127.0.0.1", port=0, token=tok)
+            await bridge.start()
+            port = bridge.bound_port
+            try:
+                # 1. Empty current clipboard must return 400 and NEVER fall back to history[0]
+                with mock.patch.object(
+                    omarchy_continuity, "get_clipboard_sync", return_value={"ok": True, "text": ""}
+                ), mock.patch.object(
+                    omarchy_continuity, "read_clipboard_history_sync", return_value=["stale-secret"]
+                ):
+                    code, payload = await asyncio.to_thread(
+                        _http_json,
+                        f"http://127.0.0.1:{port}/api/continuity/push-clipboard",
+                        "POST",
+                        tok,
+                        {"target_device": "Pixel 8"},
+                    )
+                    self.assertEqual(code, 400)
+                    self.assertFalse(payload.get("ok", True))
+
+                # 2. Multiple connected clients must never receive a broadcast; only the exact matched target receives it
+                class DummyClient:
+                    def __init__(self, name: str) -> None:
+                        self.device_name = name
+                        self.closed = False
+                        self.sent: list[dict] = []
+
+                    async def send_json(self, msg: dict) -> None:
+                        self.sent.append(msg)
+
+                c_pixel = DummyClient("Pixel 8")
+                c_other = DummyClient("Tablet")
+                bridge.ws_clients = {c_pixel, c_other}  # type: ignore[assignment]
+
+                with mock.patch.object(
+                    omarchy_continuity, "get_clipboard_sync", return_value={"ok": True, "text": "live-clip"}
+                ), mock.patch.object(
+                    omarchy_continuity, "read_clipboard_history_sync", return_value=["live-clip"]
+                ):
+                    # Ambiguous (no target_device with 2 clients) -> 409 Conflict, 0 messages sent
+                    code_ambig, _ = await asyncio.to_thread(
+                        _http_json,
+                        f"http://127.0.0.1:{port}/api/continuity/push-clipboard",
+                        "POST",
+                        tok,
+                        {"target_device": ""},
+                    )
+                    self.assertEqual(code_ambig, 409)
+                    self.assertEqual(len(c_pixel.sent), 0)
+                    self.assertEqual(len(c_other.sent), 0)
+
+                    # Targeted to "Pixel 8" -> 200 OK, delivered ONLY to c_pixel (not c_other)
+                    code_ok, res_ok = await asyncio.to_thread(
+                        _http_json,
+                        f"http://127.0.0.1:{port}/api/continuity/push-clipboard",
+                        "POST",
+                        tok,
+                        {"target_device": "Pixel 8"},
+                    )
+                    self.assertEqual(code_ok, 200)
+                    self.assertTrue(res_ok.get("ok"))
+                    self.assertEqual(len(c_pixel.sent), 1)
+                    self.assertEqual(c_pixel.sent[0]["data"]["text"], "live-clip")
+                    self.assertNotIn("force", c_pixel.sent[0]["data"])
+                    self.assertEqual(len(c_other.sent), 0)
+            finally:
+                bridge.ws_clients.clear()
+                await bridge.stop()
+
+        asyncio.run(run_clip_checks())
+
 
 if __name__ == "__main__":
     unittest.main()

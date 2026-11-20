@@ -333,6 +333,7 @@ def main() -> None:
     parser.add_argument("--copy-token", action="store_true")
     parser.add_argument("--ring", action="store_true")
     parser.add_argument("--send-clip", action="store_true")
+    parser.add_argument("--target-device", default="")
     parser.add_argument("--reply-id", default="")
     parser.add_argument("--reply-text", default="")
     args = parser.parse_args()
@@ -348,7 +349,12 @@ def main() -> None:
 
     if args.send_clip:
         res, _ = _local_request(
-            args.port, "/api/continuity/push-clipboard", token, method="POST", payload={}, timeout=2.0
+            args.port,
+            "/api/continuity/push-clipboard",
+            token,
+            method="POST",
+            payload={"target_device": args.target_device},
+            timeout=2.0,
         )
         print(json.dumps({"action": "send_clip", "ok": bool(res and res.get("ok"))}))
         return

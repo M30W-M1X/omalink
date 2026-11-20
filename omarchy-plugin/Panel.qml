@@ -122,7 +122,10 @@ Panel {
 
   function sendClipboard() {
     if (helperPath === "" || copyProc.running) return
-    copyProc.command = ["python3", helperPath, "--port", String(bridgePort), "--send-clip"]
+    copyProc.command = [
+      "python3", helperPath, "--port", String(bridgePort),
+      "--send-clip", "--target-device", root.phoneName
+    ]
     copyProc.running = true
   }
 
@@ -447,7 +450,8 @@ Panel {
                   spacing: Style.space(5)
 
                   Text {
-                    text: root.phoneName !== "" ? root.phoneName : "Phone"
+                    text: (root.phoneName !== "" ? root.phoneName : "Phone")
+                      + (root.connectedClients > 1 ? (" (+" + (root.connectedClients - 1) + " more)") : "")
                     textFormat: Text.PlainText
                     color: root.foreground
                     font.family: root.fontFamily
@@ -544,7 +548,7 @@ Panel {
                 Button {
                   width: (parent.width - Style.space(8)) / 2
                   text: "Send Clip"
-                  enabled: root.bridgeActive
+                  enabled: root.bridgeActive && root.connectedClients === 1
                   foreground: root.foreground
                   fontFamily: root.fontFamily
                   bordered: true

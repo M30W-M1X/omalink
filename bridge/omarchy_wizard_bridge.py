@@ -415,6 +415,7 @@ class WebSocketClient:
         self.reader = reader
         self.writer = writer
         self.closed = False
+        self.device_name: str = ""
         self._send_lock = asyncio.Lock()
 
     async def send_json(self, payload: dict[str, Any]) -> None:
@@ -1431,20 +1432,49 @@ class OmarchyWizardBridge:
         if method == "POST" and path == "/api/continuity/push-clipboard":
             clip = await omarchy_continuity.get_clipboard()
             text = str(clip.get("text", ""))
-            history = await asyncio.to_thread(omarchy_continuity.read_clipboard_history_sync, 15)
-            if not text and history:
-                text = str(history[0])
             if not text:
                 await self._send_http_json(
                     writer, HTTPStatus.BAD_REQUEST, {"ok": False, "error": "Desktop clipboard is empty"}
                 )
                 return
-            await self.broadcast(
-                "continuity.clipboard_update",
-                {"text": text, "history": history, "force": True},
-            )
+            target_device = str(body.get("target_device", "")).strip()
+            active_clients = [c for c in list(self.ws_clients) if not c.closed]
+            if len(active_clients) != 1:
+                matched = [
+                    c for c in active_clients
+                    if target_device and c.device_name and c.device_name == target_device
+                ]
+                if len(matched) != 1:
+                    await self._send_http_json(
+                        writer,
+                        HTTPStatus.CONFLICT,
+                        {
+                            "ok": False,
+                            "error": "Clipboard delivery requires a single unambiguous target device",
+                        },
+                    )
+                    return
+                recipient = matched[0]
+            else:
+                recipient = active_clients[0]
+                if target_device and recipient.device_name and recipient.device_name != target_device:
+                    await self._send_http_json(
+                        writer,
+                        HTTPStatus.CONFLICT,
+                        {"ok": False, "error": "Connected device does not match displayed target device"},
+                    )
+                    return
+
+            history = await asyncio.to_thread(omarchy_continuity.read_clipboard_history_sync, 15)
+            await recipient.send_json({
+                "type": "continuity.clipboard_update",
+                "ts": utc_now_iso(),
+                "data": {"text": text, "history": history},
+            })
             await self._send_http_json(
-                writer, HTTPStatus.OK, {"ok": True, "length": len(text)}
+                writer,
+                HTTPStatus.OK,
+                {"ok": True, "length": len(text), "target_device": recipient.device_name or target_device},
             )
             return
 
@@ -1614,8 +1644,11 @@ class OmarchyWizardBridge:
                                 await client.send_json({"type": "pong", "ts": utc_now_iso()})
                             elif mtype == "device.status":
                                 raw_bat = msg.get("battery")
+                                dev_name = str(msg.get("name", "")).strip()[:48]
+                                if dev_name:
+                                    client.device_name = dev_name
                                 omarchy_continuity.update_phone_device_state(
-                                    name=str(msg.get("name", "")),
+                                    name=dev_name,
                                     battery=int(raw_bat) if isinstance(raw_bat, (int, float)) else None,
                                     charging=bool(msg.get("charging", False)),
                                 )
