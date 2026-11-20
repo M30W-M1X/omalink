@@ -8,9 +8,17 @@
 
 ## Screenshots
 
+### Omarchy Top-Bar Plugin (`omalink.panel`) & Live AI Agent Sessions
+
+| Omarchy Top-Bar Panel (`CONNECTED DEVICE` Card) | Live AI Agent Sessions (Peek & Reply) |
+| :---: | :---: |
+| <img src="docs/screenshots/09_topbar_panel.png" width="380" alt="Omarchy Top-Bar Panel with Connected Device card, 10-segment battery gauge, Ring Phone, Send Clip, and Bridge & Pairing footer" /> | <img src="docs/screenshots/10_agent_sessions.png" width="200" alt="Live AI Agent Sessions screen showing open Agy and Claude sessions, tool calls, and NEEDS RESPONSE badges" /> |
+
+### Android Companion App
+
 | Wizard Home & Mascot | Animated Avatars & App Icons | Companion Tools Menu | Omarchy Control Plane |
 | :---: | :---: | :---: | :---: |
-| <img src="docs/screenshots/01_home_wizard.png" width="200" alt="OmaLink Home screen with Arcane Agy mascot, labeled quick tiles, AI usage, and spell parameters" /> | <img src="docs/screenshots/08_avatar_picker.png" width="200" alt="Animated Anime Wizard mascot and switchable Android app icon picker" /> | <img src="docs/screenshots/02_tools_menu.png" width="200" alt="Material 3 Companion Tools bottom sheet" /> | <img src="docs/screenshots/04_control_plane.png" width="200" alt="Omarchy Control Plane with vitals, PipeWire audio, Spotify media controls, and output sinks" /> |
+| <img src="docs/screenshots/01_home_wizard.png" width="200" alt="OmaLink Home screen with Arcane Agy mascot, Sessions badge, labeled quick tiles, AI usage, and spell parameters" /> | <img src="docs/screenshots/08_avatar_picker.png" width="200" alt="Animated Anime Wizard mascot and switchable Android app icon picker" /> | <img src="docs/screenshots/02_tools_menu.png" width="200" alt="Material 3 Companion Tools bottom sheet" /> | <img src="docs/screenshots/04_control_plane.png" width="200" alt="Omarchy Control Plane with vitals, PipeWire audio, Spotify media controls, and output sinks" /> |
 
 | Continuity & Notifications | Wireless Trackpad & Slides | Interactive Terminal | Sanctum & Pairing |
 | :---: | :---: | :---: | :---: |
@@ -114,8 +122,9 @@ No Python pip dependencies are required — the bridge runs on **Python 3.11+ st
 ## Project Structure
 
 - `manifest.json` — Root Omarchy Plugin Marketplace manifest (`omalink.panel`, validated with `omarchy plugin validate .`).
-- `install.sh` — Idempotent non-interactive installer, health checker (`--check --json`), and uninstaller for Omarchy Linux.
-- `AGENT_INSTALL.md` — Dedicated runbook & copy-paste prompt for AI agents inside Omarchy.
+- `install.sh` — Idempotent non-interactive installer, runtime SHA-256 digest verifier, health checker (`--check --json`), and uninstaller for Omarchy Linux.
+- `AGENTS.md` — Architecture, marketplace rules, security invariants, and build/test commands for AI coding agents working on this repo.
+- `AGENT_INSTALL.md` — Dedicated runbook & copy-paste prompt for AI agents installing OmaLink inside Omarchy.
 - `bridge/` — Pure Python 3.11+ HTTP + WebSocket server (`omarchy_wizard_bridge.py`), OS control (`omarchy_control.py`), Continuity (`omarchy_continuity.py`), Wayland Remote Desktop (`omarchy_desktop.py`), File Explorer (`omarchy_files.py`), PTY Terminal (`omarchy_pty.py`), and unit test suite (`test_bridge.py`).
 - `omarchy-plugin/` — Omarchy top-bar status badge (`omalink.panel`, `Panel.qml`, `WizardIcon.qml`, `status.py`) with live pairing QR code, 1-click bridge auto-setup, connected devices, and quick replies.
 - `android_app/` — Flutter Android app (`io.github.m30w_m1x.omalink`) with Material 3 dynamic Omarchy theming, 5 animated avatars & switchable launcher icons, Quick Settings Tile, and Home Screen Widget.
