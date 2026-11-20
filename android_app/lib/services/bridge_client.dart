@@ -204,6 +204,8 @@ class BridgeClient extends ChangeNotifier {
   Timer? _demoTimer;
   Timer? _batteryTimer;
   Timer? _vitalsTimer;
+  Timer? _ringTimer;
+  String _lastReportedName = '';
   final Set<String> _watchedTaskIds = <String>{};
 
   bool _isRinging = false;
@@ -374,6 +376,13 @@ class BridgeClient extends ChangeNotifier {
           _continuityActivity.removeLast();
         }
         notifyListeners();
+      },
+      onRingStopped: () {
+        _ringTimer?.cancel();
+        if (_isRinging) {
+          _isRinging = false;
+          notifyListeners();
+        }
       },
     );
 
@@ -624,6 +633,7 @@ class BridgeClient extends ChangeNotifier {
         cancelOnError: true,
       );
       notifyListeners();
+      unawaited(_reportDeviceBattery(force: true));
       unawaited(refreshSystemState());
       unawaited(browseDirectory());
       unawaited(refreshSessions());
@@ -784,11 +794,12 @@ class BridgeClient extends ChangeNotifier {
           }
           break;
         case 'phone.ring':
-          final duration = (data['duration'] as num?)?.toInt() ?? 12;
+          final duration = (data['duration'] as num?)?.toInt() ?? 15;
+          _ringTimer?.cancel();
           _isRinging = true;
           notifyListeners();
           unawaited(ContinuityService.instance.ringPhone(duration: duration));
-          Timer(Duration(seconds: duration), () {
+          _ringTimer = Timer(Duration(seconds: duration), () {
             if (!_disposed && _isRinging) {
               _isRinging = false;
               notifyListeners();
@@ -1514,6 +1525,7 @@ class BridgeClient extends ChangeNotifier {
   }
 
   Future<void> stopRinging() async {
+    _ringTimer?.cancel();
     _isRinging = false;
     notifyListeners();
     await ContinuityService.instance.stopRinging();
@@ -1535,6 +1547,7 @@ class BridgeClient extends ChangeNotifier {
     final status = await ContinuityService.instance.getDeviceStatus();
     if (status == null || status.battery < 0) return;
     if (!force &&
+        status.name == _lastReportedName &&
         status.battery == _lastReportedBattery &&
         status.charging == _lastReportedCharging) {
       return;
@@ -1548,6 +1561,7 @@ class BridgeClient extends ChangeNotifier {
           'battery': status.battery,
           'charging': status.charging,
         }));
+        _lastReportedName = status.name;
         _lastReportedBattery = status.battery;
         _lastReportedCharging = status.charging;
       } catch (_) {}

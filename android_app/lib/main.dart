@@ -35,6 +35,8 @@ class _OmarchyWizardAppState extends State<OmarchyWizardApp>
   int _tabIndex = 0;
   bool _pairingDialogOpen = false;
   bool _shareDialogOpen = false;
+  bool _ringDialogOpen = false;
+  BuildContext? _ringDialogContext;
   PendingPairingRequest? _displayedPairingRequest;
   BuildContext? _pairingDialogContext;
   PendingShareRequest? _displayedShareRequest;
@@ -70,6 +72,24 @@ class _OmarchyWizardAppState extends State<OmarchyWizardApp>
     if (!mounted) return;
     final ctx = _navKey.currentContext;
     if (ctx == null) return;
+
+    if (_ringDialogOpen && !widget.client.isRinging) {
+      final rCtx = _ringDialogContext;
+      _ringDialogContext = null;
+      if (rCtx != null && rCtx.mounted) {
+        Navigator.of(rCtx).pop();
+      }
+    } else if (widget.client.isRinging && !_ringDialogOpen) {
+      _ringDialogOpen = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !widget.client.isRinging) {
+          _ringDialogOpen = false;
+          return;
+        }
+        _showFindMyPhoneDialog();
+      });
+      return;
+    }
 
     final pendingPair = widget.client.pendingPairing;
     if (_pairingDialogOpen && _displayedPairingRequest != null) {
@@ -290,6 +310,70 @@ class _OmarchyWizardAppState extends State<OmarchyWizardApp>
       await widget.client.confirmPendingShare(req);
     } else {
       widget.client.dismissPendingShare(req);
+    }
+    _checkPendingSecurityPrompts();
+  }
+
+  Future<void> _showFindMyPhoneDialog() async {
+    final ctx = _navKey.currentContext;
+    if (ctx == null || !widget.client.isRinging) {
+      _ringDialogOpen = false;
+      _ringDialogContext = null;
+      return;
+    }
+    await showDialog<void>(
+      context: ctx,
+      barrierDismissible: false,
+      builder: (dialogCtx) {
+        _ringDialogContext = dialogCtx;
+        return AlertDialog(
+          backgroundColor: WizardColors.surfaceCard,
+          title: Row(
+            children: [
+              Icon(Icons.notifications_active_rounded, color: WizardColors.goldStarlight, size: 26),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Find My Phone Alert',
+                  style: TextStyle(color: WizardColors.textPrimary),
+                ),
+              ),
+            ],
+          ),
+          content: Text(
+            'Playing an alert sound triggered from your Omarchy desktop.',
+            style: TextStyle(color: WizardColors.textMuted, fontSize: 13),
+          ),
+          actions: [
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: WizardColors.coralError,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+                onPressed: () async {
+                  await widget.client.stopRinging();
+                  if (dialogCtx.mounted) {
+                    Navigator.of(dialogCtx).pop();
+                  }
+                },
+                icon: const Icon(Icons.volume_off_rounded),
+                label: const Text(
+                  'Stop Ringing',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+    _ringDialogContext = null;
+    _ringDialogOpen = false;
+    if (widget.client.isRinging) {
+      await widget.client.stopRinging();
     }
     _checkPendingSecurityPrompts();
   }

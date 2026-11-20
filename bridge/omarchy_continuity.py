@@ -275,22 +275,63 @@ def send_desktop_notification_sync(
     return entry
 
 
+def _phone_state_file() -> Path:
+    xdg = os.environ.get("XDG_CONFIG_HOME")
+    base = Path(xdg) if xdg else Path.home() / ".config"
+    return base / "omalink" / "phone_device.json"
+
+
+def _load_persisted_phone_state() -> None:
+    if _PHONE_DEVICE.get("name"):
+        return
+    p = _phone_state_file()
+    if not p.is_file():
+        return
+    try:
+        raw = json.loads(p.read_text(encoding="utf-8"))
+        if isinstance(raw, dict):
+            name = str(raw.get("name", "")).strip()[:48]
+            if name and name.lower() not in ("android", "android companion"):
+                _PHONE_DEVICE["name"] = name
+            bat = raw.get("battery")
+            if isinstance(bat, (int, float)) and _PHONE_DEVICE.get("battery") is None:
+                _PHONE_DEVICE["battery"] = max(0, min(100, int(bat)))
+            if "charging" in raw and not _PHONE_DEVICE.get("updated_at"):
+                _PHONE_DEVICE["charging"] = bool(raw.get("charging", False))
+    except Exception:
+        pass
+
+
 def update_phone_device_state(
     *,
     name: str = "",
     battery: int | None = None,
     charging: bool = False,
 ) -> dict[str, Any]:
-    if name.strip():
-        _PHONE_DEVICE["name"] = name.strip()[:48]
+    clean_name = name.strip()[:48]
+    if clean_name and clean_name.lower() != "android":
+        _PHONE_DEVICE["name"] = clean_name
+    elif clean_name and not _PHONE_DEVICE.get("name"):
+        _PHONE_DEVICE["name"] = clean_name
     if battery is not None:
         _PHONE_DEVICE["battery"] = max(0, min(100, int(battery)))
     _PHONE_DEVICE["charging"] = bool(charging)
     _PHONE_DEVICE["updated_at"] = _utc_now()
+    try:
+        p = _phone_state_file()
+        p.parent.mkdir(parents=True, exist_ok=True)
+        fd = os.open(str(p), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        try:
+            os.write(fd, json.dumps(_PHONE_DEVICE).encode("utf-8"))
+        finally:
+            os.close(fd)
+    except Exception:
+        pass
     return dict(_PHONE_DEVICE)
 
 
 def get_phone_device_state() -> dict[str, Any]:
+    _load_persisted_phone_state()
     return dict(_PHONE_DEVICE)
 
 

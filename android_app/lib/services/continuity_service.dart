@@ -127,7 +127,7 @@ class ContinuityService {
       final raw = await _method.invokeMapMethod<dynamic, dynamic>('getDeviceStatus');
       if (raw == null) return null;
       return PhoneDeviceStatus(
-        name: raw['name']?.toString() ?? 'Android',
+        name: raw['name']?.toString() ?? 'Phone',
         battery: (raw['battery'] as num?)?.toInt() ?? -1,
         charging: raw['charging'] == true,
       );
@@ -249,6 +249,7 @@ class ContinuityService {
     required void Function(ContinuityFileSharePayload fileShare) onFileShare,
     required void Function(String pairUri) onPairUri,
     required void Function(Map<String, dynamic> relayed) onRelayedNotification,
+    void Function()? onRingStopped,
   }) {
     if (!Platform.isAndroid || _sub != null) return;
     try {
@@ -285,6 +286,8 @@ class ContinuityService {
             if (uri.isNotEmpty) onPairUri(uri);
           } else if (ev == 'relayed_notification') {
             onRelayedNotification(map);
+          } else if (ev == 'ring_stopped') {
+            onRingStopped?.call();
           }
         },
         onError: (_) {},

@@ -1,5 +1,9 @@
 package io.github.m30w_m1x.omalink
 
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.ComponentName
 import android.content.ContentValues
 import android.content.Context
@@ -37,6 +41,9 @@ class MainActivity : FlutterActivity() {
         private const val METHOD_CHANNEL = "io.github.m30w_m1x.omalink/continuity"
         private const val EVENT_CHANNEL = "io.github.m30w_m1x.omalink/continuity_events"
         private const val MAX_SHARE_BYTES = 25 * 1024 * 1024
+        private const val ACTION_STOP_RINGING = "io.github.m30w_m1x.omalink.STOP_RINGING"
+        private const val FIND_MY_PHONE_CHANNEL = "omalink_find_my_phone"
+        private const val FIND_MY_PHONE_NOTIF_ID = 4249
         private val LAUNCHER_ALIASES = linkedMapOf(
             "classic" to "io.github.m30w_m1x.omalink.LauncherDefault",
             "anime_girl" to "io.github.m30w_m1x.omalink.LauncherAnimeGirl",
@@ -203,23 +210,107 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    private fun resolveDeviceName(): String {
+        val candidates = listOfNotNull(
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N_MR1) {
+                runCatching { Settings.Global.getString(contentResolver, Settings.Global.DEVICE_NAME) }.getOrNull()
+            } else null,
+            runCatching { Settings.Secure.getString(contentResolver, "bluetooth_name") }.getOrNull(),
+            runCatching { Settings.System.getString(contentResolver, "device_name") }.getOrNull(),
+        )
+        for (raw in candidates) {
+            val clean = raw.trim()
+            if (clean.isNotEmpty() && !clean.equals("android", ignoreCase = true)) {
+                return clean
+            }
+        }
+        val manufacturer = (Build.MANUFACTURER ?: "").trim()
+        val model = (Build.MODEL ?: "").trim()
+        if (model.isEmpty()) return "Phone"
+        return if (manufacturer.isNotEmpty() && !model.startsWith(manufacturer, ignoreCase = true)) {
+            "${manufacturer.replaceFirstChar { it.uppercase() }} $model"
+        } else {
+            model
+        }
+    }
+
     private fun readBatteryStatus(): Map<String, Any> {
         val intent = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
         val level = intent?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
         val scale = intent?.getIntExtra(BatteryManager.EXTRA_SCALE, 100) ?: 100
         val pct = if (level >= 0 && scale > 0) (level * 100) / scale else -1
         val status = intent?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
-        val charging = status == BatteryManager.BATTERY_STATUS_CHARGING ||
-            status == BatteryManager.BATTERY_STATUS_FULL
+        val plugged = intent?.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) ?: 0
+        // Only true when the phone is actively charging (never when unplugged or merely full)
+        val charging = status == BatteryManager.BATTERY_STATUS_CHARGING && plugged != 0
         return mapOf(
-            "name" to (Build.MODEL ?: "Android"),
+            "name" to resolveDeviceName(),
             "battery" to pct,
             "charging" to charging,
         )
     }
 
+    private fun showFindMyPhoneNotification() {
+        try {
+            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val chan = NotificationChannel(
+                    FIND_MY_PHONE_CHANNEL,
+                    "Find My Phone Alerts",
+                    NotificationManager.IMPORTANCE_HIGH,
+                ).apply {
+                    description = "High-priority alert allowing you to stop Find My Phone ringing"
+                    lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+                }
+                nm.createNotificationChannel(chan)
+            }
+            val stopIntent = Intent(this, MainActivity::class.java).apply {
+                action = ACTION_STOP_RINGING
+                putExtra("stop_ringing", true)
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+            val pendingFlags = PendingIntent.FLAG_UPDATE_CURRENT or
+                (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0)
+            val stopPending = PendingIntent.getActivity(this, 4249, stopIntent, pendingFlags)
+
+            val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                Notification.Builder(this, FIND_MY_PHONE_CHANNEL)
+            } else {
+                @Suppress("DEPRECATION")
+                Notification.Builder(this)
+            }
+            @Suppress("DEPRECATION")
+            val stopAction = Notification.Action.Builder(
+                android.R.drawable.ic_lock_silent_mode,
+                "Stop Ringing",
+                stopPending,
+            ).build()
+
+            builder
+                .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+                .setContentTitle("Find My Phone Alert")
+                .setContentText("Playing sound from your Omarchy desktop. Tap to stop ringing.")
+                .setCategory(Notification.CATEGORY_ALARM)
+                .setContentIntent(stopPending)
+                .setDeleteIntent(stopPending)
+                .setAutoCancel(true)
+                .addAction(stopAction)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                builder.setVisibility(Notification.VISIBILITY_PUBLIC)
+            }
+            nm.notify(FIND_MY_PHONE_NOTIF_ID, builder.build())
+        } catch (_: Exception) {}
+    }
+
+    private fun cancelFindMyPhoneNotification() {
+        try {
+            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+            nm?.cancel(FIND_MY_PHONE_NOTIF_ID)
+        } catch (_: Exception) {}
+    }
+
     private fun startRinging(durationSec: Int) {
-        stopRinging()
+        stopRinging(notifyFlutter = false)
         try {
             val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
                 ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
@@ -236,15 +327,16 @@ class MainActivity : FlutterActivity() {
                 start()
             }
             mediaPlayer = player
-            val r = Runnable { stopRinging() }
+            showFindMyPhoneNotification()
+            val r = Runnable { stopRinging(notifyFlutter = true) }
             stopRingRunnable = r
             mainHandler.postDelayed(r, durationSec.coerceIn(3, 30) * 1000L)
         } catch (_: Exception) {
-            stopRinging()
+            stopRinging(notifyFlutter = true)
         }
     }
 
-    private fun stopRinging() {
+    private fun stopRinging(notifyFlutter: Boolean = true) {
         stopRingRunnable?.let { mainHandler.removeCallbacks(it) }
         stopRingRunnable = null
         try {
@@ -252,6 +344,12 @@ class MainActivity : FlutterActivity() {
             mediaPlayer?.release()
         } catch (_: Exception) {}
         mediaPlayer = null
+        cancelFindMyPhoneNotification()
+        if (notifyFlutter) {
+            mainHandler.post {
+                eventSink?.success(mapOf("event" to "ring_stopped"))
+            }
+        }
     }
 
     @Suppress("DEPRECATION")
@@ -359,6 +457,11 @@ class MainActivity : FlutterActivity() {
 
     private fun handleIncomingIntent(intent: Intent?, emitLive: Boolean) {
         if (intent == null) return
+
+        if (intent.action == ACTION_STOP_RINGING || intent.getBooleanExtra("stop_ringing", false)) {
+            stopRinging(notifyFlutter = true)
+            return
+        }
 
         // 1. Pairing QR Deep Link: omalink://pair?host=...&port=...&token=...
         if (intent.action == Intent.ACTION_VIEW) {

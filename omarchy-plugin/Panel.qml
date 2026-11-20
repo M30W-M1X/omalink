@@ -447,7 +447,7 @@ Panel {
                   spacing: Style.space(5)
 
                   Text {
-                    text: root.phoneName !== "" ? root.phoneName : "Android Companion"
+                    text: root.phoneName !== "" ? root.phoneName : "Phone"
                     textFormat: Text.PlainText
                     color: root.foreground
                     font.family: root.fontFamily
