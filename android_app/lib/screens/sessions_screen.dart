@@ -384,7 +384,7 @@ class _SessionPeekScreenState extends State<SessionPeekScreen> {
         widget.initialSession.needsResponse;
     unawaited(_loadTranscript(scrollToBottom: true));
     _pollTimer = Timer.periodic(const Duration(seconds: 3), (_) {
-      if (mounted) {
+      if (mounted && widget.client.isAppForeground) {
         unawaited(_loadTranscript(scrollToBottom: false));
       }
     });

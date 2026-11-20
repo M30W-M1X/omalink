@@ -407,23 +407,30 @@ def _launch_app_or_url(
     path_str = env.get("PATH", "")
 
     if url:
-        # Prefer native Spotify app for spotify: URIs, browser for web links, xdg-open otherwise
-        if app_key == "spotify" and url.lower().startswith("spotify:"):
+        cleaned_url = url.strip()
+        if cleaned_url.startswith("-"):
+            return False, "Refusing URL starting with '-'", ""
+        lower = cleaned_url.lower()
+        # Allowlist only spotify:, http://, and https:// URI schemes
+        if lower.startswith("spotify:"):
             spotify_bin = shutil.which("spotify", path=path_str)
-            if spotify_bin and _spawn_detached([spotify_bin, f"--uri={url}"], env):
-                return True, f"Opened in Spotify: {url}", "spotify"
+            if spotify_bin and _spawn_detached([spotify_bin, f"--uri={cleaned_url}"], env):
+                return True, f"Opened in Spotify: {cleaned_url}", "spotify"
+            xdg = shutil.which("xdg-open", path=path_str)
+            if xdg and _spawn_detached([xdg, "--", cleaned_url], env):
+                return True, f"Opened Spotify URI on Omarchy: {cleaned_url}", "xdg-open"
+            return False, "Spotify is not installed on this host.", ""
 
-        if url.lower().startswith(("http://", "https://")):
-            launcher = shutil.which("omarchy-launch-browser", path=path_str) or shutil.which(
-                "xdg-open", path=path_str
-            )
-            if launcher and _spawn_detached([launcher, url], env):
-                return True, f"Opened link on Omarchy: {url}", Path(launcher).name
+        if lower.startswith(("http://", "https://")):
+            launcher = shutil.which("omarchy-launch-browser", path=path_str)
+            if launcher and _spawn_detached([launcher, cleaned_url], env):
+                return True, f"Opened link on Omarchy: {cleaned_url}", Path(launcher).name
+            xdg = shutil.which("xdg-open", path=path_str)
+            if xdg and _spawn_detached([xdg, "--", cleaned_url], env):
+                return True, f"Opened link on Omarchy: {cleaned_url}", "xdg-open"
+            return False, "No URL launcher (omarchy-launch-browser / xdg-open) found.", ""
 
-        xdg = shutil.which("xdg-open", path=path_str)
-        if xdg and _spawn_detached([xdg, url], env):
-            return True, f"Opened URI on Omarchy: {url}", "xdg-open"
-        return False, "No URL launcher (omarchy-launch-browser / xdg-open) found.", ""
+        return False, "Unsupported URI scheme (only https://, http://, and spotify: are allowed).", ""
 
     for item in _DESKTOP_APPS:
         if item["id"] == app_key:

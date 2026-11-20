@@ -21,6 +21,7 @@ Panel {
   property string pairUrl: "http://127.0.0.1:7842"
   property string qrPath: ""
   property bool showQr: true
+  property bool qrUserToggled: false
   property string defaultAgent: "agy"
   property int connectedClients: 0
   property int runningTasks: 0
@@ -66,6 +67,9 @@ Panel {
       qrPath = parsed.qrPath ? String(parsed.qrPath) : ""
       if (parsed.defaultAgent) defaultAgent = String(parsed.defaultAgent)
       connectedClients = Number(parsed.connectedClients || 0)
+      if (!qrUserToggled) {
+        showQr = (connectedClients === 0)
+      }
       runningTasks = Number(parsed.runningTasks || 0)
       phoneName = parsed.phoneName ? String(parsed.phoneName) : ""
       phoneBattery = (parsed.phoneBattery !== null && parsed.phoneBattery !== undefined) ? Number(parsed.phoneBattery) : -1
@@ -353,7 +357,10 @@ Panel {
               foreground: root.foreground
               fontFamily: root.fontFamily
               bordered: true
-              onClicked: root.showQr = !root.showQr
+              onClicked: {
+                root.qrUserToggled = true
+                root.showQr = !root.showQr
+              }
             }
           }
 

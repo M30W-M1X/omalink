@@ -29,15 +29,17 @@ class ArcaneWizardMascot extends StatefulWidget {
 }
 
 class _ArcaneWizardMascotState extends State<ArcaneWizardMascot>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   late final AnimationController _floatController;
   late final AnimationController _orbitController;
   late final AnimationController _blinkController;
   late final AnimationController _burstController;
+  bool _animationsPaused = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _floatController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 2800),
@@ -60,6 +62,23 @@ class _ArcaneWizardMascotState extends State<ArcaneWizardMascot>
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final shouldPause = state != AppLifecycleState.resumed;
+    if (_animationsPaused == shouldPause) return;
+    _animationsPaused = shouldPause;
+    if (shouldPause) {
+      _floatController.stop();
+      _orbitController.stop();
+      _blinkController.stop();
+      _burstController.stop();
+    } else {
+      _floatController.repeat();
+      _orbitController.repeat();
+      _blinkController.repeat();
+    }
+  }
+
+  @override
   void didUpdateWidget(covariant ArcaneWizardMascot oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.mood != oldWidget.mood) {
@@ -79,6 +98,7 @@ class _ArcaneWizardMascotState extends State<ArcaneWizardMascot>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _floatController.dispose();
     _orbitController.dispose();
     _blinkController.dispose();

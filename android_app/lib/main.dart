@@ -35,6 +35,7 @@ class _OmarchyWizardAppState extends State<OmarchyWizardApp>
   int _tabIndex = 0;
   bool _pairingDialogOpen = false;
   bool _shareDialogOpen = false;
+  bool _isForeground = true;
 
   @override
   void initState() {
@@ -46,9 +47,11 @@ class _OmarchyWizardAppState extends State<OmarchyWizardApp>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      widget.client.ensureConnectedOnResume();
+    final fg = state == AppLifecycleState.resumed;
+    if (_isForeground != fg) {
+      setState(() => _isForeground = fg);
     }
+    widget.client.setAppLifecycle(isForeground: fg);
   }
 
   @override
@@ -228,26 +231,29 @@ class _OmarchyWizardAppState extends State<OmarchyWizardApp>
           debugShowCheckedModeBanner: false,
           theme: WizardTheme.fromPalette(palette),
           home: Scaffold(
-            body: IndexedStack(
-              index: _tabIndex,
-              children: [
-                WizardHomeScreen(
-                  client: widget.client,
-                  onOpenSettings: () => setState(() => _tabIndex = 4),
-                ),
-                ControlPlaneScreen(client: widget.client),
-                TerminalScreen(
-                  client: widget.client,
-                  isActive: _tabIndex == 2,
-                  onOpenSettings: () => setState(() => _tabIndex = 4),
-                ),
-                FileExplorerScreen(
-                  client: widget.client,
-                  onCastWizardInPath: () => setState(() => _tabIndex = 0),
-                  onOpenTerminalInPath: () => setState(() => _tabIndex = 2),
-                ),
-                SettingsScreen(client: widget.client),
-              ],
+            body: TickerMode(
+              enabled: _isForeground,
+              child: IndexedStack(
+                index: _tabIndex,
+                children: [
+                  WizardHomeScreen(
+                    client: widget.client,
+                    onOpenSettings: () => setState(() => _tabIndex = 4),
+                  ),
+                  ControlPlaneScreen(client: widget.client),
+                  TerminalScreen(
+                    client: widget.client,
+                    isActive: _tabIndex == 2 && _isForeground,
+                    onOpenSettings: () => setState(() => _tabIndex = 4),
+                  ),
+                  FileExplorerScreen(
+                    client: widget.client,
+                    onCastWizardInPath: () => setState(() => _tabIndex = 0),
+                    onOpenTerminalInPath: () => setState(() => _tabIndex = 2),
+                  ),
+                  SettingsScreen(client: widget.client),
+                ],
+              ),
             ),
             bottomNavigationBar: NavigationBar(
               selectedIndex: _tabIndex,

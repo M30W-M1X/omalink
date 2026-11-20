@@ -516,6 +516,32 @@ class BridgeClient extends ChangeNotifier {
     }
   }
 
+  bool _isAppForeground = true;
+  bool get isAppForeground => _isAppForeground;
+  int _lastReportedBattery = -1;
+  bool? _lastReportedCharging;
+
+  void setAppLifecycle({required bool isForeground}) {
+    if (_isAppForeground == isForeground) {
+      if (isForeground) ensureConnectedOnResume();
+      return;
+    }
+    _isAppForeground = isForeground;
+    // Dynamically throttle WebSocket ping & polling timers in background to save battery
+    try {
+      _ws?.pingInterval = isForeground
+          ? const Duration(seconds: 45)
+          : const Duration(seconds: 120);
+    } catch (_) {}
+    if (!_settings.demoMode) {
+      _startBatteryHeartbeat();
+      _startVitalsTicker();
+    }
+    if (isForeground) {
+      ensureConnectedOnResume();
+    }
+  }
+
   void ensureConnectedOnResume() {
     if (_disposed || _settings.demoMode) {
       unawaited(refreshVitalsShade());
@@ -561,7 +587,9 @@ class BridgeClient extends ChangeNotifier {
         uri.toString(),
         headers: {'Authorization': 'Bearer ${_settings.token}'},
       ).timeout(const Duration(seconds: 6));
-      _ws!.pingInterval = const Duration(seconds: 25);
+      _ws!.pingInterval = _isAppForeground
+          ? const Duration(seconds: 45)
+          : const Duration(seconds: 120);
 
       _connectionState = BridgeConnectionState.connected;
       _wsSub = _ws!.listen(
@@ -1472,16 +1500,24 @@ class BridgeClient extends ChangeNotifier {
 
   void _startBatteryHeartbeat() {
     _batteryTimer?.cancel();
-    _batteryTimer = Timer.periodic(const Duration(seconds: 60), (_) {
+    final interval = _isAppForeground
+        ? const Duration(minutes: 2)
+        : const Duration(minutes: 10);
+    _batteryTimer = Timer.periodic(interval, (_) {
       if (!_disposed && !_settings.demoMode) {
         unawaited(_reportDeviceBattery());
       }
     });
   }
 
-  Future<void> _reportDeviceBattery() async {
+  Future<void> _reportDeviceBattery({bool force = false}) async {
     final status = await ContinuityService.instance.getDeviceStatus();
     if (status == null || status.battery < 0) return;
+    if (!force &&
+        status.battery == _lastReportedBattery &&
+        status.charging == _lastReportedCharging) {
+      return;
+    }
     final ws = _ws;
     if (ws != null && _connectionState == BridgeConnectionState.connected) {
       try {
@@ -1491,6 +1527,8 @@ class BridgeClient extends ChangeNotifier {
           'battery': status.battery,
           'charging': status.charging,
         }));
+        _lastReportedBattery = status.battery;
+        _lastReportedCharging = status.charging;
       } catch (_) {}
     }
   }
@@ -1720,7 +1758,10 @@ class BridgeClient extends ChangeNotifier {
   void _startVitalsTicker() {
     _vitalsTimer?.cancel();
     if (_settings.demoMode) return;
-    _vitalsTimer = Timer.periodic(const Duration(seconds: 45), (_) {
+    final interval = _isAppForeground
+        ? const Duration(seconds: 60)
+        : const Duration(minutes: 10);
+    _vitalsTimer = Timer.periodic(interval, (_) {
       if (!_disposed && !_settings.demoMode && _settings.vitalsNotification) {
         unawaited(refreshVitalsShade());
       }

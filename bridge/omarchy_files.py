@@ -34,13 +34,37 @@ def _bookmarks() -> list[dict[str, str]]:
     ]
 
 
+def _check_path_allowed(target: Path) -> Path:
+    """Block sensitive credential and service directories from remote file API access."""
+    home = Path.home().resolve()
+    xdg_cfg = Path(os.environ.get("XDG_CONFIG_HOME") or (home / ".config")).resolve()
+    blocked_roots = (
+        home / ".ssh",
+        home / ".gnupg",
+        xdg_cfg / "omalink",
+        xdg_cfg / "omarchy-wizard",
+        xdg_cfg / "systemd",
+        Path("/etc/shadow"),
+        Path("/etc/gshadow"),
+        Path("/root"),
+    )
+    for b in blocked_roots:
+        try:
+            b_res = b.resolve()
+        except OSError:
+            b_res = b
+        if target == b_res or b_res in target.parents:
+            raise PermissionError(f"Access to sensitive path is restricted: {target.name}")
+    return target
+
+
 def _resolve_existing_path(raw_path: str | None, *, fallback_home: bool = False) -> Path:
     if not raw_path or not raw_path.strip():
         return Path.home().resolve()
     target = Path(raw_path).expanduser().resolve()
     if not target.exists() and fallback_home:
         return Path.home().resolve()
-    return target
+    return _check_path_allowed(target)
 
 
 def _resolve_entry_no_follow(raw_path: str) -> Path:
@@ -55,8 +79,8 @@ def _resolve_entry_no_follow(raw_path: str) -> Path:
     name = expanded.name
     if not name or name in {".", ".."}:
         raise ValueError("Invalid target entry name")
-    parent = expanded.parent.resolve(strict=True)
-    return parent / name
+    parent = _check_path_allowed(expanded.parent.resolve(strict=True))
+    return _check_path_allowed(parent / name)
 
 
 def _safe_child_name(name: str) -> str:

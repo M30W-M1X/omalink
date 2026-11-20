@@ -17,6 +17,7 @@ from datetime import datetime, timezone
 import hashlib
 import hmac
 from http import HTTPStatus
+import ipaddress
 import json
 import os
 from pathlib import Path
@@ -47,8 +48,10 @@ MAX_TASKS = 100
 MAX_HEADER_BYTES = 16 * 1024
 MAX_JSON_BODY_BYTES = 256 * 1024
 MAX_UPLOAD_BODY_BYTES = 35 * 1024 * 1024
+MAX_WS_FRAME_BYTES = 2 * 1024 * 1024
 AUTH_FAIL_WINDOW_SEC = 60.0
 AUTH_FAIL_MAX = 8
+MAX_TRACKED_PEERS = 1024
 MIN_TOKEN_LEN = 24
 
 
@@ -222,8 +225,9 @@ def build_agent_command(
             "agy",
             "--output-format",
             "stream-json",
-            "--dangerously-skip-permissions",
         ]
+        if mode == "auto":
+            cmd.append("--dangerously-skip-permissions")
         if mode in {"auto", "accept-edits", "plan"}:
             cmd.extend(["--mode", mode])
         if effort in {"low", "medium", "high", "xhigh", "max"}:
@@ -250,7 +254,11 @@ def build_agent_command(
         return ["codex", "exec", "--json", prompt]
 
     if agent == "kimi":
-        return ["kimi", "--yolo", "--output-format", "stream-json", "-p", prompt]
+        cmd = ["kimi"]
+        if mode == "auto":
+            cmd.append("--yolo")
+        cmd.extend(["--output-format", "stream-json", "-p", prompt])
+        return cmd
 
     if agent == "opencode":
         return ["opencode", "run", prompt]
@@ -447,6 +455,9 @@ class WebSocketClient:
             length = struct.unpack("!H", await self.reader.readexactly(2))[0]
         elif length == 127:
             length = struct.unpack("!Q", await self.reader.readexactly(8))[0]
+        if length > MAX_WS_FRAME_BYTES:
+            await self.close()
+            return None
         mask_key = await self.reader.readexactly(4) if masked else b""
         payload = bytearray(await self.reader.readexactly(length))
         if masked:
@@ -491,23 +502,43 @@ class OmarchyWizardBridge:
         self.bound_port: int = port
         self._auth_failures: dict[str, list[float]] = {}
 
+    @staticmethod
+    def _normalize_peer_key(peer_ip: str) -> str:
+        raw = peer_ip.strip()
+        try:
+            addr = ipaddress.ip_address(raw)
+            if isinstance(addr, ipaddress.IPv6Address):
+                if addr.ipv4_mapped:
+                    return str(addr.ipv4_mapped)
+                net = ipaddress.IPv6Network((addr, 64), strict=False)
+                return f"{net.network_address}/64"
+            return str(addr)
+        except ValueError:
+            return raw or "unknown"
+
     def _is_rate_limited(self, peer_ip: str) -> bool:
+        key = self._normalize_peer_key(peer_ip)
         now = time.monotonic()
-        stamps = [t for t in self._auth_failures.get(peer_ip, []) if (now - t) < AUTH_FAIL_WINDOW_SEC]
+        stamps = [t for t in self._auth_failures.get(key, []) if (now - t) < AUTH_FAIL_WINDOW_SEC]
         if stamps:
-            self._auth_failures[peer_ip] = stamps
+            self._auth_failures[key] = stamps
         else:
-            self._auth_failures.pop(peer_ip, None)
+            self._auth_failures.pop(key, None)
         return len(stamps) >= AUTH_FAIL_MAX
 
     def _record_auth_failure(self, peer_ip: str) -> None:
+        key = self._normalize_peer_key(peer_ip)
         now = time.monotonic()
-        stamps = [t for t in self._auth_failures.get(peer_ip, []) if (now - t) < AUTH_FAIL_WINDOW_SEC]
+        if key not in self._auth_failures and len(self._auth_failures) >= MAX_TRACKED_PEERS:
+            oldest_key = next(iter(self._auth_failures))
+            self._auth_failures.pop(oldest_key, None)
+        stamps = [t for t in self._auth_failures.get(key, []) if (now - t) < AUTH_FAIL_WINDOW_SEC]
         stamps.append(now)
-        self._auth_failures[peer_ip] = stamps
+        self._auth_failures[key] = stamps
 
     def _clear_auth_failures(self, peer_ip: str) -> None:
-        self._auth_failures.pop(peer_ip, None)
+        key = self._normalize_peer_key(peer_ip)
+        self._auth_failures.pop(key, None)
 
     def is_authorized(self, headers: dict[str, str], query: dict[str, list[str]] | None = None) -> bool:
         """Authenticate strictly via Authorization: Bearer <token> header (no URL query tokens)."""
@@ -1583,7 +1614,12 @@ class OmarchyWizardBridge:
         content_type: str = "application/octet-stream",
         filename: str | None = None,
     ) -> None:
-        disp = f'Content-Disposition: attachment; filename="{filename}"\r\n' if filename else ""
+        safe_fn = ""
+        if filename:
+            safe_fn = "".join(
+                ch for ch in filename if ch >= " " and ch not in {'"', "\\", "/", "\r", "\n"}
+            ).strip()
+        disp = f'Content-Disposition: attachment; filename="{safe_fn}"\r\n' if safe_fn else ""
         headers = (
             f"HTTP/1.1 {status.value} {status.phrase}\r\n"
             f"Content-Type: {content_type}\r\n"
