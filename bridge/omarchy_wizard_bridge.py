@@ -1438,32 +1438,32 @@ class OmarchyWizardBridge:
                 )
                 return
             target_device = str(body.get("target_device", "")).strip()
+            if not target_device:
+                await self._send_http_json(
+                    writer,
+                    HTTPStatus.CONFLICT,
+                    {
+                        "ok": False,
+                        "error": "Clipboard delivery requires an identified target device",
+                    },
+                )
+                return
             active_clients = [c for c in list(self.ws_clients) if not c.closed]
-            if len(active_clients) != 1:
-                matched = [
-                    c for c in active_clients
-                    if target_device and c.device_name and c.device_name == target_device
-                ]
-                if len(matched) != 1:
-                    await self._send_http_json(
-                        writer,
-                        HTTPStatus.CONFLICT,
-                        {
-                            "ok": False,
-                            "error": "Clipboard delivery requires a single unambiguous target device",
-                        },
-                    )
-                    return
-                recipient = matched[0]
-            else:
-                recipient = active_clients[0]
-                if target_device and recipient.device_name and recipient.device_name != target_device:
-                    await self._send_http_json(
-                        writer,
-                        HTTPStatus.CONFLICT,
-                        {"ok": False, "error": "Connected device does not match displayed target device"},
-                    )
-                    return
+            matched = [
+                c for c in active_clients
+                if c.device_name and c.device_name == target_device
+            ]
+            if len(matched) != 1:
+                await self._send_http_json(
+                    writer,
+                    HTTPStatus.CONFLICT,
+                    {
+                        "ok": False,
+                        "error": "Clipboard delivery requires a single connected client matching the displayed device",
+                    },
+                )
+                return
+            recipient = matched[0]
 
             history = await asyncio.to_thread(omarchy_continuity.read_clipboard_history_sync, 15)
             await recipient.send_json({
@@ -1474,7 +1474,7 @@ class OmarchyWizardBridge:
             await self._send_http_json(
                 writer,
                 HTTPStatus.OK,
-                {"ok": True, "length": len(text), "target_device": recipient.device_name or target_device},
+                {"ok": True, "length": len(text), "target_device": recipient.device_name},
             )
             return
 

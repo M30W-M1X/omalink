@@ -548,7 +548,7 @@ Panel {
                 Button {
                   width: (parent.width - Style.space(8)) / 2
                   text: "Send Clip"
-                  enabled: root.bridgeActive && root.connectedClients === 1
+                  enabled: root.bridgeActive && root.connectedClients === 1 && root.phoneName !== ""
                   foreground: root.foreground
                   fontFamily: root.fontFamily
                   bordered: true

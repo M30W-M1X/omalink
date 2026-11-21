@@ -1048,6 +1048,36 @@ class BridgeTests(unittest.TestCase):
                     async def send_json(self, msg: dict) -> None:
                         self.sent.append(msg)
 
+                c_unnamed = DummyClient("")
+                bridge.ws_clients = {c_unnamed}  # type: ignore[assignment]
+
+                with mock.patch.object(
+                    omarchy_continuity, "get_clipboard_sync", return_value={"ok": True, "text": "live-clip"}
+                ), mock.patch.object(
+                    omarchy_continuity, "read_clipboard_history_sync", return_value=["live-clip"]
+                ):
+                    # Newly connected unnamed phone during a device switch must NOT receive clipboard for previous phone
+                    code_switch, _ = await asyncio.to_thread(
+                        _http_json,
+                        f"http://127.0.0.1:{port}/api/continuity/push-clipboard",
+                        "POST",
+                        tok,
+                        {"target_device": "Pixel 8"},
+                    )
+                    self.assertEqual(code_switch, 409)
+                    self.assertEqual(len(c_unnamed.sent), 0)
+
+                    # Unnamed target with unnamed client must also fail closed
+                    code_empty_target, _ = await asyncio.to_thread(
+                        _http_json,
+                        f"http://127.0.0.1:{port}/api/continuity/push-clipboard",
+                        "POST",
+                        tok,
+                        {"target_device": ""},
+                    )
+                    self.assertEqual(code_empty_target, 409)
+                    self.assertEqual(len(c_unnamed.sent), 0)
+
                 c_pixel = DummyClient("Pixel 8")
                 c_other = DummyClient("Tablet")
                 bridge.ws_clients = {c_pixel, c_other}  # type: ignore[assignment]
