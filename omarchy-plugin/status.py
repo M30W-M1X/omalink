@@ -273,6 +273,7 @@ def get_status(port: int) -> dict:
         "connectedClients": int(status_data.get("connected_clients", 0)) if status_data else 0,
         "runningTasks": int(status_data.get("running_tasks", 0)) if status_data else 0,
         "phoneName": str(phone.get("name", ""))[:32],
+        "phoneClientId": str(phone.get("client_id", ""))[:64],
         "phoneBattery": phone.get("battery"),
         "phoneCharging": bool(phone.get("charging", False)),
         "replyable": replyable if isinstance(replyable, dict) else None,
@@ -333,6 +334,7 @@ def main() -> None:
     parser.add_argument("--copy-token", action="store_true")
     parser.add_argument("--ring", action="store_true")
     parser.add_argument("--send-clip", action="store_true")
+    parser.add_argument("--target-client-id", default="")
     parser.add_argument("--target-device", default="")
     parser.add_argument("--reply-id", default="")
     parser.add_argument("--reply-text", default="")
@@ -348,12 +350,18 @@ def main() -> None:
         return
 
     if args.send_clip:
+        if not args.target_client_id.strip():
+            print(json.dumps({"action": "send_clip", "ok": False}))
+            return
         res, _ = _local_request(
             args.port,
             "/api/continuity/push-clipboard",
             token,
             method="POST",
-            payload={"target_device": args.target_device},
+            payload={
+                "target_client_id": args.target_client_id.strip(),
+                "target_device": args.target_device,
+            },
             timeout=2.0,
         )
         print(json.dumps({"action": "send_clip", "ok": bool(res and res.get("ok"))}))

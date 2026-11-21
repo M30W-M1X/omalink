@@ -415,6 +415,7 @@ class WebSocketClient:
         self.reader = reader
         self.writer = writer
         self.closed = False
+        self.client_id: str = secrets.token_urlsafe(16)
         self.device_name: str = ""
         self._send_lock = asyncio.Lock()
 
@@ -569,6 +570,10 @@ class OmarchyWizardBridge:
         info = read_omarchy_info()
         running = sum(1 for t in self.tasks.values() if t.status == "running")
         ts_ip = omarchy_control.detect_tailscale_ip()
+        phone = omarchy_continuity.get_phone_device_state()
+        active_ids = {c.client_id for c in self.ws_clients if not c.closed}
+        if phone.get("client_id") not in active_ids:
+            phone["client_id"] = ""
         return {
             "ok": True,
             "bridge_version": "2.0.0",
@@ -586,7 +591,7 @@ class OmarchyWizardBridge:
             "tls_fingerprint": self.tls_fingerprint,
             "total_tasks": len(self.tasks),
             "theme": omarchy_control.read_theme_palette_sync(),
-            "phone": omarchy_continuity.get_phone_device_state(),
+            "phone": phone,
             "replyable_notification": omarchy_continuity.latest_replyable_notification(),
         }
 
@@ -1437,21 +1442,24 @@ class OmarchyWizardBridge:
                     writer, HTTPStatus.BAD_REQUEST, {"ok": False, "error": "Desktop clipboard is empty"}
                 )
                 return
+            target_client_id = str(body.get("target_client_id", "")).strip()
             target_device = str(body.get("target_device", "")).strip()
-            if not target_device:
+            if not target_client_id:
                 await self._send_http_json(
                     writer,
                     HTTPStatus.CONFLICT,
                     {
                         "ok": False,
-                        "error": "Clipboard delivery requires an identified target device",
+                        "error": "Clipboard delivery requires a bound target_client_id for the displayed device",
                     },
                 )
                 return
             active_clients = [c for c in list(self.ws_clients) if not c.closed]
             matched = [
-                c for c in active_clients
-                if c.device_name and c.device_name == target_device
+                c
+                for c in active_clients
+                if c.client_id == target_client_id
+                and (not target_device or not c.device_name or c.device_name == target_device)
             ]
             if len(matched) != 1:
                 await self._send_http_json(
@@ -1459,22 +1467,25 @@ class OmarchyWizardBridge:
                     HTTPStatus.CONFLICT,
                     {
                         "ok": False,
-                        "error": "Clipboard delivery requires a single connected client matching the displayed device",
+                        "error": "Displayed device connection is no longer active or does not match target",
                     },
                 )
                 return
             recipient = matched[0]
-
-            history = await asyncio.to_thread(omarchy_continuity.read_clipboard_history_sync, 15)
             await recipient.send_json({
                 "type": "continuity.clipboard_update",
                 "ts": utc_now_iso(),
-                "data": {"text": text, "history": history},
+                "data": {"text": text},
             })
             await self._send_http_json(
                 writer,
                 HTTPStatus.OK,
-                {"ok": True, "length": len(text), "target_device": recipient.device_name},
+                {
+                    "ok": True,
+                    "length": len(text),
+                    "target_client_id": recipient.client_id,
+                    "target_device": recipient.device_name or target_device,
+                },
             )
             return
 
@@ -1651,6 +1662,7 @@ class OmarchyWizardBridge:
                                     name=dev_name,
                                     battery=int(raw_bat) if isinstance(raw_bat, (int, float)) else None,
                                     charging=bool(msg.get("charging", False)),
+                                    client_id=client.client_id,
                                 )
                     except Exception:
                         pass

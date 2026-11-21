@@ -27,6 +27,7 @@ Panel {
   property int connectedClients: 0
   property int runningTasks: 0
   property string phoneName: ""
+  property string phoneClientId: ""
   property int phoneBattery: -1
   property bool phoneCharging: false
   property var replyable: null
@@ -81,6 +82,7 @@ Panel {
       }
       runningTasks = Number(parsed.runningTasks || 0)
       phoneName = parsed.phoneName ? String(parsed.phoneName) : ""
+      phoneClientId = parsed.phoneClientId ? String(parsed.phoneClientId) : ""
       phoneBattery = (parsed.phoneBattery !== null && parsed.phoneBattery !== undefined) ? Number(parsed.phoneBattery) : -1
       phoneCharging = parsed.phoneCharging === true
       replyable = parsed.replyable || null
@@ -121,10 +123,11 @@ Panel {
   }
 
   function sendClipboard() {
-    if (helperPath === "" || copyProc.running) return
+    if (helperPath === "" || copyProc.running || root.phoneClientId === "") return
     copyProc.command = [
       "python3", helperPath, "--port", String(bridgePort),
-      "--send-clip", "--target-device", root.phoneName
+      "--send-clip", "--target-client-id", root.phoneClientId,
+      "--target-device", root.phoneName
     ]
     copyProc.running = true
   }
@@ -548,7 +551,7 @@ Panel {
                 Button {
                   width: (parent.width - Style.space(8)) / 2
                   text: "Send Clip"
-                  enabled: root.bridgeActive && root.connectedClients === 1 && root.phoneName !== ""
+                  enabled: root.bridgeActive && root.connectedClients === 1 && root.phoneName !== "" && root.phoneClientId !== ""
                   foreground: root.foreground
                   fontFamily: root.fontFamily
                   bordered: true

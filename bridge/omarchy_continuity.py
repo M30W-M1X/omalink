@@ -24,6 +24,7 @@ _PHONE_DEVICE: dict[str, Any] = {
     "name": "",
     "battery": None,
     "charging": False,
+    "client_id": "",
     "updated_at": "",
 }
 
@@ -307,6 +308,7 @@ def update_phone_device_state(
     name: str = "",
     battery: int | None = None,
     charging: bool = False,
+    client_id: str | None = None,
 ) -> dict[str, Any]:
     clean_name = name.strip()[:48]
     if clean_name and clean_name.lower() != "android":
@@ -316,13 +318,16 @@ def update_phone_device_state(
     if battery is not None:
         _PHONE_DEVICE["battery"] = max(0, min(100, int(battery)))
     _PHONE_DEVICE["charging"] = bool(charging)
+    if client_id is not None:
+        _PHONE_DEVICE["client_id"] = client_id.strip()[:64]
     _PHONE_DEVICE["updated_at"] = _utc_now()
     try:
         p = _phone_state_file()
         p.parent.mkdir(parents=True, exist_ok=True)
+        persisted = {k: v for k, v in _PHONE_DEVICE.items() if k != "client_id"}
         fd = os.open(str(p), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
         try:
-            os.write(fd, json.dumps(_PHONE_DEVICE).encode("utf-8"))
+            os.write(fd, json.dumps(persisted).encode("utf-8"))
         finally:
             os.close(fd)
     except Exception:

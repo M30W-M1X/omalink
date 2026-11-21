@@ -1038,9 +1038,11 @@ class BridgeTests(unittest.TestCase):
                     self.assertEqual(code, 400)
                     self.assertFalse(payload.get("ok", True))
 
-                # 2. Multiple connected clients must never receive a broadcast; only the exact matched target receives it
+                # 2. Multiple connected clients or connection switches with identical device_name ("Pixel 8")
+                #    must be disambiguated by per-connection client_id and never deliver to a replacement connection
                 class DummyClient:
-                    def __init__(self, name: str) -> None:
+                    def __init__(self, client_id: str, name: str) -> None:
+                        self.client_id = client_id
                         self.device_name = name
                         self.closed = False
                         self.sent: list[dict] = []
@@ -1048,71 +1050,53 @@ class BridgeTests(unittest.TestCase):
                     async def send_json(self, msg: dict) -> None:
                         self.sent.append(msg)
 
-                c_unnamed = DummyClient("")
-                bridge.ws_clients = {c_unnamed}  # type: ignore[assignment]
+                c_pixel_1 = DummyClient("conn-phone-1", "Pixel 8")
+                c_pixel_2 = DummyClient("conn-phone-2", "Pixel 8")
+                bridge.ws_clients = {c_pixel_2}  # type: ignore[assignment]
 
                 with mock.patch.object(
                     omarchy_continuity, "get_clipboard_sync", return_value={"ok": True, "text": "live-clip"}
                 ), mock.patch.object(
-                    omarchy_continuity, "read_clipboard_history_sync", return_value=["live-clip"]
+                    omarchy_continuity, "read_clipboard_history_sync", return_value=["live-clip", "older-clip"]
                 ):
-                    # Newly connected unnamed phone during a device switch must NOT receive clipboard for previous phone
-                    code_switch, _ = await asyncio.to_thread(
+                    # Missing target_client_id -> 409 Conflict, 0 messages sent
+                    code_missing, _ = await asyncio.to_thread(
                         _http_json,
                         f"http://127.0.0.1:{port}/api/continuity/push-clipboard",
                         "POST",
                         tok,
                         {"target_device": "Pixel 8"},
                     )
-                    self.assertEqual(code_switch, 409)
-                    self.assertEqual(len(c_unnamed.sent), 0)
+                    self.assertEqual(code_missing, 409)
+                    self.assertEqual(len(c_pixel_2.sent), 0)
 
-                    # Unnamed target with unnamed client must also fail closed
-                    code_empty_target, _ = await asyncio.to_thread(
+                    # Connection switched from Phone 1 ("conn-phone-1", "Pixel 8") to Phone 2 ("conn-phone-2", "Pixel 8")
+                    # while Phone 1's card is still displayed -> 409 Conflict, 0 messages sent to Phone 2!
+                    code_switched, _ = await asyncio.to_thread(
                         _http_json,
                         f"http://127.0.0.1:{port}/api/continuity/push-clipboard",
                         "POST",
                         tok,
-                        {"target_device": ""},
+                        {"target_client_id": "conn-phone-1", "target_device": "Pixel 8"},
                     )
-                    self.assertEqual(code_empty_target, 409)
-                    self.assertEqual(len(c_unnamed.sent), 0)
+                    self.assertEqual(code_switched, 409)
+                    self.assertEqual(len(c_pixel_2.sent), 0)
 
-                c_pixel = DummyClient("Pixel 8")
-                c_other = DummyClient("Tablet")
-                bridge.ws_clients = {c_pixel, c_other}  # type: ignore[assignment]
-
-                with mock.patch.object(
-                    omarchy_continuity, "get_clipboard_sync", return_value={"ok": True, "text": "live-clip"}
-                ), mock.patch.object(
-                    omarchy_continuity, "read_clipboard_history_sync", return_value=["live-clip"]
-                ):
-                    # Ambiguous (no target_device with 2 clients) -> 409 Conflict, 0 messages sent
-                    code_ambig, _ = await asyncio.to_thread(
-                        _http_json,
-                        f"http://127.0.0.1:{port}/api/continuity/push-clipboard",
-                        "POST",
-                        tok,
-                        {"target_device": ""},
-                    )
-                    self.assertEqual(code_ambig, 409)
-                    self.assertEqual(len(c_pixel.sent), 0)
-                    self.assertEqual(len(c_other.sent), 0)
-
-                    # Targeted to "Pixel 8" -> 200 OK, delivered ONLY to c_pixel (not c_other)
+                    # Exact bound target_client_id ("conn-phone-2") -> 200 OK, sends ONLY current text (no history!)
+                    bridge.ws_clients = {c_pixel_1, c_pixel_2}  # type: ignore[assignment]
                     code_ok, res_ok = await asyncio.to_thread(
                         _http_json,
                         f"http://127.0.0.1:{port}/api/continuity/push-clipboard",
                         "POST",
                         tok,
-                        {"target_device": "Pixel 8"},
+                        {"target_client_id": "conn-phone-2", "target_device": "Pixel 8"},
                     )
                     self.assertEqual(code_ok, 200)
                     self.assertTrue(res_ok.get("ok"))
-                    self.assertEqual(len(c_pixel.sent), 1)
-                    self.assertEqual(c_pixel.sent[0]["data"]["text"], "live-clip")
-                    self.assertNotIn("force", c_pixel.sent[0]["data"])
-                    self.assertEqual(len(c_other.sent), 0)
+                    self.assertEqual(len(c_pixel_2.sent), 1)
+                    self.assertEqual(c_pixel_2.sent[0]["data"], {"text": "live-clip"})
+                    self.assertNotIn("history", c_pixel_2.sent[0]["data"])
+                    self.assertEqual(len(c_pixel_1.sent), 0)
             finally:
                 bridge.ws_clients.clear()
                 await bridge.stop()
