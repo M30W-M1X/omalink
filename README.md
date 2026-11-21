@@ -2,7 +2,7 @@
 
 **Android Continuity, Remote Desktop, Trackpad, OS Control, and AI Agent companion for Omarchy Linux** — featuring a zero-dependency Python bridge, an Omarchy top-bar plugin (`omalink.panel`), live Omarchy theme syncing, silent notification-shade machine vitals + Agy limits, and 5 animated stylized mascots & switchable Android app icons.
 
-> **Latest Android APK (`v3.7.0`):** Download `app-release.apk` and `SHA256SUMS` from [GitHub Release v3.7.0](https://github.com/M30W-M1X/omalink/releases/tag/v3.7.0) and verify with `grep '  app-release.apk$' SHA256SUMS | sha256sum -c -`.
+> **Latest Android APK (`v3.7.1`):** Download `app-release.apk` and `SHA256SUMS` from [GitHub Release v3.7.1](https://github.com/M30W-M1X/omalink/releases/tag/v3.7.1) and verify with `grep '  app-release.apk$' SHA256SUMS | sha256sum -c -`.
 
 ---
 
@@ -46,20 +46,20 @@ See [AGENT_INSTALL.md](AGENT_INSTALL.md) for the full deterministic AI agent run
 
 ### Option 3 — Digest-Verified & Commit-Pinned Release Installer
 
-Download `install.sh` and `SHA256SUMS` for `v3.7.0`, verify the exact `install.sh` artifact against its published SHA-256 digest, inspect it, and run it pinned to the immutable 40-character commit SHA (`7cad472b1e4429bfccec77c44a96bec02c410725`):
+Download `install.sh` and `SHA256SUMS` for `v3.7.1`, verify the exact `install.sh` artifact against its published SHA-256 digest, inspect it, and run it pinned to the immutable 40-character commit SHA (`3165c9e24ca89d14657089e9099b6738fb3a7670`):
 
 ```bash
-curl -fsSLO https://github.com/M30W-M1X/omalink/releases/download/v3.7.0/install.sh && \
-curl -fsSLO https://github.com/M30W-M1X/omalink/releases/download/v3.7.0/SHA256SUMS && \
-echo "38016996361772f75df911fcfa23dd03c956f345d564f4ebae5b608540c70973  install.sh" | sha256sum -c - && \
+curl -fsSLO https://github.com/M30W-M1X/omalink/releases/download/v3.7.1/install.sh && \
+curl -fsSLO https://github.com/M30W-M1X/omalink/releases/download/v3.7.1/SHA256SUMS && \
+echo "60a72faf43a06d12794fec6aa154a0845421b54d07da1ce416ef912966365cfc  install.sh" | sha256sum -c - && \
 grep '  install.sh$' SHA256SUMS | sha256sum -c - && \
-bash install.sh --ref 7cad472b1e4429bfccec77c44a96bec02c410725
+bash install.sh --ref 3165c9e24ca89d14657089e9099b6738fb3a7670
 ```
 
 Before starting `omalink-bridge.service`, `install.sh` also verifies the SHA-256 digest of every runtime bridge and plugin file (`manifest.json`, `bridge/*.py`, `omarchy-plugin/*`).
 
 Useful installer flags:
-- `./install.sh --ref 7cad472b1e4429bfccec77c44a96bec02c410725` — bind remote clone to an immutable 40-char commit SHA (default: `7cad472b1e4429bfccec77c44a96bec02c410725`, release `v3.7.0`)
+- `./install.sh --ref 3165c9e24ca89d14657089e9099b6738fb3a7670` — bind remote clone to an immutable 40-char commit SHA (default: `3165c9e24ca89d14657089e9099b6738fb3a7670`, release `v3.7.1`)
 - `./install.sh --json` — machine-readable JSON output (used by AI agents)
 - `./install.sh --check --json` — read-only health, service, plugin & tool diagnostics
 - `./install.sh --tls` — enable self-signed TLS 1.2+ with SHA-256 pinning (enabled by default)
@@ -73,11 +73,10 @@ No Python pip dependencies are required — the bridge runs on **Python 3.11+ st
 
 ## Pairing Your Android Phone
 
-1. Download `app-release.apk` and `SHA256SUMS` from [GitHub Release v3.7.0](https://github.com/M30W-M1X/omalink/releases/tag/v3.7.0) and verify the APK digest before installing:
+1. Download `app-release.apk` and `SHA256SUMS` from [GitHub Release v3.7.1](https://github.com/M30W-M1X/omalink/releases/tag/v3.7.1) and verify the APK digest before installing:
    ```bash
-   curl -fsSLO https://github.com/M30W-M1X/omalink/releases/download/v3.7.0/app-release.apk && \
-   curl -fsSLO https://github.com/M30W-M1X/omalink/releases/download/v3.7.0/SHA256SUMS && \
-   echo "2703cd1e414d8d51298bd930330597599c7cb38e4e66ee69063607c12c9e8e5e  app-release.apk" | sha256sum -c - && \
+   curl -fsSLO https://github.com/M30W-M1X/omalink/releases/download/v3.7.1/app-release.apk && \
+   curl -fsSLO https://github.com/M30W-M1X/omalink/releases/download/v3.7.1/SHA256SUMS && \
    grep '  app-release.apk$' SHA256SUMS | sha256sum -c -
    ```
 2. Click the **OmaLink badge** in your Omarchy top bar — it displays a live **QR code** by default (or run `./install.sh --show-pairing` in a local terminal).
