@@ -35,9 +35,9 @@ Requirements:
 # Option A: Download release installer, verify exact SHA-256 digest (short-circuiting on mismatch), and run pinned to immutable 40-char commit SHA
 curl -fsSLO https://github.com/M30W-M1X/omalink/releases/download/v3.7.0/install.sh && \
 curl -fsSLO https://github.com/M30W-M1X/omalink/releases/download/v3.7.0/SHA256SUMS && \
-echo "b6096bbffd2e5dc66ff731f36bb683414a5882f12c9daeb0ff8b87e6d3b433fe  install.sh" | sha256sum -c - && \
+echo "38016996361772f75df911fcfa23dd03c956f345d564f4ebae5b608540c70973  install.sh" | sha256sum -c - && \
 grep '  install.sh$' SHA256SUMS | sha256sum -c - && \
-bash install.sh --ref 3c0c982df5079c4ca5c187255128312db57b8aed --json
+bash install.sh --ref 7cad472b1e4429bfccec77c44a96bec02c410725 --json
 
 # Option B: Install as an Omarchy Plugin Marketplace git plugin
 omarchy plugin add https://github.com/M30W-M1X/omalink.git --enable --yes && \
@@ -45,8 +45,8 @@ omarchy plugin add https://github.com/M30W-M1X/omalink.git --enable --yes && \
 
 # Option C: From a local checkout bound to the immutable 40-char commit SHA
 git clone --no-checkout https://github.com/M30W-M1X/omalink.git ~/.local/share/omalink && \
-git -C ~/.local/share/omalink fetch --depth 1 origin 3c0c982df5079c4ca5c187255128312db57b8aed && \
-git -C ~/.local/share/omalink checkout --detach 3c0c982df5079c4ca5c187255128312db57b8aed && \
+git -C ~/.local/share/omalink fetch --depth 1 origin 7cad472b1e4429bfccec77c44a96bec02c410725 && \
+git -C ~/.local/share/omalink checkout --detach 7cad472b1e4429bfccec77c44a96bec02c410725 && \
 cd ~/.local/share/omalink && \
 ./install.sh --json
 ```

@@ -46,20 +46,20 @@ See [AGENT_INSTALL.md](AGENT_INSTALL.md) for the full deterministic AI agent run
 
 ### Option 3 — Digest-Verified & Commit-Pinned Release Installer
 
-Download `install.sh` and `SHA256SUMS` for `v3.7.0`, verify the exact `install.sh` artifact against its published SHA-256 digest, inspect it, and run it pinned to the immutable 40-character commit SHA (`3c0c982df5079c4ca5c187255128312db57b8aed`):
+Download `install.sh` and `SHA256SUMS` for `v3.7.0`, verify the exact `install.sh` artifact against its published SHA-256 digest, inspect it, and run it pinned to the immutable 40-character commit SHA (`7cad472b1e4429bfccec77c44a96bec02c410725`):
 
 ```bash
 curl -fsSLO https://github.com/M30W-M1X/omalink/releases/download/v3.7.0/install.sh && \
 curl -fsSLO https://github.com/M30W-M1X/omalink/releases/download/v3.7.0/SHA256SUMS && \
-echo "b6096bbffd2e5dc66ff731f36bb683414a5882f12c9daeb0ff8b87e6d3b433fe  install.sh" | sha256sum -c - && \
+echo "38016996361772f75df911fcfa23dd03c956f345d564f4ebae5b608540c70973  install.sh" | sha256sum -c - && \
 grep '  install.sh$' SHA256SUMS | sha256sum -c - && \
-bash install.sh --ref 3c0c982df5079c4ca5c187255128312db57b8aed
+bash install.sh --ref 7cad472b1e4429bfccec77c44a96bec02c410725
 ```
 
 Before starting `omalink-bridge.service`, `install.sh` also verifies the SHA-256 digest of every runtime bridge and plugin file (`manifest.json`, `bridge/*.py`, `omarchy-plugin/*`).
 
 Useful installer flags:
-- `./install.sh --ref 3c0c982df5079c4ca5c187255128312db57b8aed` — bind remote clone to an immutable 40-char commit SHA (default: `3c0c982df5079c4ca5c187255128312db57b8aed`, release `v3.7.0`)
+- `./install.sh --ref 7cad472b1e4429bfccec77c44a96bec02c410725` — bind remote clone to an immutable 40-char commit SHA (default: `7cad472b1e4429bfccec77c44a96bec02c410725`, release `v3.7.0`)
 - `./install.sh --json` — machine-readable JSON output (used by AI agents)
 - `./install.sh --check --json` — read-only health, service, plugin & tool diagnostics
 - `./install.sh --tls` — enable self-signed TLS 1.2+ with SHA-256 pinning (enabled by default)
