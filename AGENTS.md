@@ -58,7 +58,12 @@ This file provides architectural context, build/test commands, marketplace const
   - Keep rate limiting (including IPv6 `/64` prefix normalization) and the 2 MB WebSocket frame cap enabled.
   - Keep symlink no-follow (`follow_symlinks=False` / `is_symlink()`) and the sensitive path blocklist (`~/.config/omalink`, `~/.ssh`, `~/.gnupg`, etc.) in `bridge/omarchy_files.py`.
   - Keep URI scheme allowlisting (`https`, `http`, `mailto`, `spotify`) in `bridge/omarchy_continuity.py`.
-- **Installer Digest Verification (`install.sh`):**
+- **Per-Connection Clipboard Scoping (`bridge/omarchy_wizard_bridge.py`, `omarchy-plugin/Panel.qml`, `omarchy-plugin/status.py`, `android_app/lib/services/bridge_client.dart`):**
+  - Each `WebSocketClient` gets a unique 128-bit `client_id` (`secrets.token_urlsafe(16)`), stored in memory only (never persisted to `phone_device.json`) and cleared immediately when disconnected.
+  - `POST /api/continuity/push-clipboard` must require a matching `target_client_id` (returning `409 Conflict` on switch/mismatch even when two phones share the same model/display name), must return `400 Bad Request` when the current clipboard is empty (never falling back to clipboard history), and must send only `{"text": text}` (no `history` key).
+  - Android `continuity.clipboard_update` must write to the system clipboard **only** when `_settings.autoSyncClipboard` is enabled.
+- **Fail-Closed Copyable Commands & Installer Digest Verification (`install.sh`, `README.md`, `AGENT_INSTALL.md`):**
+  - Every copyable multi-line command block that downloads, verifies `sha256sum -c -`, and runs `install.sh` MUST chain commands with `&& \` so a checksum mismatch immediately halts execution in interactive shells.
   - `install.sh` embeds the SHA-256 digests of all 11 runtime files (`manifest.json`, `bridge/*.py` excluding `test_bridge.py`, and `omarchy-plugin/*`) in `verify_runtime_digests()`.
   - **Whenever you edit any of those 11 runtime files**, recompute their SHA-256 digests and update the `EOF_SHA256` block in `install.sh`:
     ```bash
@@ -78,7 +83,7 @@ Run all three checks before committing or tagging a release:
 # 1. Validate Omarchy plugin layout & manifest
 omarchy plugin validate .
 
-# 2. Run Python bridge & status helper unit tests (15 tests)
+# 2. Run Python bridge & status helper unit tests (16 tests)
 PYTHONPATH=bridge python3 -m unittest discover -s bridge -v
 
 # 3. Run Flutter analyzer & unit/widget tests
@@ -94,3 +99,29 @@ To deploy and test your changes live on the local Omarchy desktop (`omalink-brid
 ./install.sh --json
 ./install.sh --check --json
 ```
+
+---
+
+## 5. Aligned Release & Digest Checklist (Mandatory for Omarchy Plugin Releases)
+
+Never leave `README.md`, `AGENT_INSTALL.md`, `install.sh`, `manifest.json`, `android_app/pubspec.yaml`, or GitHub Release assets pointing to different versions, tags, or digests. Whenever releasing a new Omarchy plugin version (`vX.Y.Z`)—or whenever `install.sh` or any of the 11 runtime files change—follow this exact two-commit release procedure:
+
+1. **Commit 1 — Runtime & Version Bump (Produces the Immutable 40-Char Commit SHA):**
+   - Bump `version` in `manifest.json` (`"X.Y.Z"`) and `version` in `android_app/pubspec.yaml` (`X.Y.Z+N`).
+   - Run all validation and test suites (`omarchy plugin validate .`, Python bridge tests, `flutter analyze`, `flutter test`).
+   - Commit all code/runtime changes and record the resulting immutable 40-character commit SHA:
+     ```bash
+     RUNTIME_SHA="$(git rev-parse HEAD)"
+     ```
+2. **Commit 2 — Installer, Docs & Digest Alignment:**
+   - Recompute the SHA-256 digests of all 11 runtime files (`manifest.json`, `bridge/*.py` excluding `test_bridge.py`, `omarchy-plugin/*`) and update the `EOF_SHA256` block in `install.sh`.
+   - Set `RELEASE_TAG="vX.Y.Z"` and `DEFAULT_COMMIT_SHA="$RUNTIME_SHA"` in `install.sh` (and verify `./install.sh --no-restart-shell --json` passes digest verification).
+   - Compute the exact SHA-256 digest of `install.sh`:
+     ```bash
+     sha256sum install.sh
+     ```
+   - Update `README.md` and `AGENT_INSTALL.md` so **every** release link, `--ref <40-char-commit-sha>`, and `echo "<INSTALL_SH_SHA256>  install.sh" | sha256sum -c -` matches `vX.Y.Z`, `$RUNTIME_SHA`, and the exact `install.sh` SHA-256 digest (chained with `&& \`).
+   - For `app-release.apk`, always verify against the release's published `SHA256SUMS` (`grep '  app-release.apk$' SHA256SUMS | sha256sum -c -`) rather than hardcoding a prior release's APK digest.
+3. **Tag, Push & Verify GitHub Release Assets:**
+   - Commit `install.sh`, `README.md`, and `AGENT_INSTALL.md`, create annotated tag `vX.Y.Z`, and push `origin master vX.Y.Z`.
+   - Watch `.github/workflows/build.yml` to completion and confirm that the GitHub Release for `vX.Y.Z` publishes `app-release.apk`, `install.sh` (with matching SHA-256), and `SHA256SUMS`.
