@@ -4,7 +4,7 @@
 
 > **Website & Docs:** [m30w-m1x.github.io/omalink](https://m30w-m1x.github.io/omalink/) &middot; **Android Privacy Policy:** [m30w-m1x.github.io/omalink/privacy.html](https://m30w-m1x.github.io/omalink/privacy.html)
 >
-> **Latest Android APK (`v3.7.1`):** Download `app-release.apk` and `SHA256SUMS` from [GitHub Release v3.7.1](https://github.com/M30W-M1X/omalink/releases/tag/v3.7.1) and verify with `grep '  app-release.apk$' SHA256SUMS | sha256sum -c -`.
+> **Latest Android APK (`v3.7.2`):** Download `app-release.apk` and `SHA256SUMS` from [GitHub Release v3.7.2](https://github.com/M30W-M1X/omalink/releases/tag/v3.7.2) and verify with `grep '  app-release.apk$' SHA256SUMS | sha256sum -c -`.
 
 ---
 
@@ -48,20 +48,20 @@ See [AGENT_INSTALL.md](AGENT_INSTALL.md) for the full deterministic AI agent run
 
 ### Option 3 — Digest-Verified & Commit-Pinned Release Installer
 
-Download `install.sh` and `SHA256SUMS` for `v3.7.1`, verify the exact `install.sh` artifact against its published SHA-256 digest, inspect it, and run it pinned to the immutable 40-character commit SHA (`3165c9e24ca89d14657089e9099b6738fb3a7670`):
+Download `install.sh` and `SHA256SUMS` for `v3.7.2`, verify the exact `install.sh` artifact against its published SHA-256 digest, inspect it, and run it pinned to the immutable 40-character commit SHA (`53b97e0ce96bde53d5e86754f88f4c0719e61445`):
 
 ```bash
-curl -fsSLO https://github.com/M30W-M1X/omalink/releases/download/v3.7.1/install.sh && \
-curl -fsSLO https://github.com/M30W-M1X/omalink/releases/download/v3.7.1/SHA256SUMS && \
-echo "60a72faf43a06d12794fec6aa154a0845421b54d07da1ce416ef912966365cfc  install.sh" | sha256sum -c - && \
+curl -fsSLO https://github.com/M30W-M1X/omalink/releases/download/v3.7.2/install.sh && \
+curl -fsSLO https://github.com/M30W-M1X/omalink/releases/download/v3.7.2/SHA256SUMS && \
+echo "41f04e259b3d24f25fe31ad8428bfb7bea2ecd6c7ae44e98da954f451081444a  install.sh" | sha256sum -c - && \
 grep '  install.sh$' SHA256SUMS | sha256sum -c - && \
-bash install.sh --ref 3165c9e24ca89d14657089e9099b6738fb3a7670
+bash install.sh --ref 53b97e0ce96bde53d5e86754f88f4c0719e61445
 ```
 
 Before starting `omalink-bridge.service`, `install.sh` also verifies the SHA-256 digest of every runtime bridge and plugin file (`manifest.json`, `bridge/*.py`, `omarchy-plugin/*`).
 
 Useful installer flags:
-- `./install.sh --ref 3165c9e24ca89d14657089e9099b6738fb3a7670` — bind remote clone to an immutable 40-char commit SHA (default: `3165c9e24ca89d14657089e9099b6738fb3a7670`, release `v3.7.1`)
+- `./install.sh --ref 53b97e0ce96bde53d5e86754f88f4c0719e61445` — bind remote clone to an immutable 40-char commit SHA (default: `53b97e0ce96bde53d5e86754f88f4c0719e61445`, release `v3.7.2`)
 - `./install.sh --json` — machine-readable JSON output (used by AI agents)
 - `./install.sh --check --json` — read-only health, service, plugin & tool diagnostics
 - `./install.sh --tls` — enable self-signed TLS 1.2+ with SHA-256 pinning (enabled by default)
@@ -75,10 +75,10 @@ No Python pip dependencies are required — the bridge runs on **Python 3.11+ st
 
 ## Pairing Your Android Phone
 
-1. Download `app-release.apk` and `SHA256SUMS` from [GitHub Release v3.7.1](https://github.com/M30W-M1X/omalink/releases/tag/v3.7.1) and verify the APK digest before installing:
+1. Download `app-release.apk` and `SHA256SUMS` from [GitHub Release v3.7.2](https://github.com/M30W-M1X/omalink/releases/tag/v3.7.2) and verify the APK digest before installing:
    ```bash
-   curl -fsSLO https://github.com/M30W-M1X/omalink/releases/download/v3.7.1/app-release.apk && \
-   curl -fsSLO https://github.com/M30W-M1X/omalink/releases/download/v3.7.1/SHA256SUMS && \
+   curl -fsSLO https://github.com/M30W-M1X/omalink/releases/download/v3.7.2/app-release.apk && \
+   curl -fsSLO https://github.com/M30W-M1X/omalink/releases/download/v3.7.2/SHA256SUMS && \
    grep '  app-release.apk$' SHA256SUMS | sha256sum -c -
    ```
 2. Click the **OmaLink badge** in your Omarchy top bar — it displays a live **QR code** by default (or run `./install.sh --show-pairing` in a local terminal).
