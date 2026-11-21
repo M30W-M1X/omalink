@@ -8,7 +8,7 @@
 #   curl -fsSLO https://github.com/M30W-M1X/omalink/releases/download/v3.7.0/SHA256SUMS
 #   grep '  install.sh$' SHA256SUMS | sha256sum -c -
 #   less install.sh
-#   bash install.sh --ref 74e07ccf0dc168a694e6ed50f658dff8cb9b60ee
+#   bash install.sh --ref 3c0c982df5079c4ca5c187255128312db57b8aed
 #
 # Or from a local checkout (such as `omarchy plugin add`):
 #   ./install.sh --json
@@ -16,7 +16,7 @@
 set -euo pipefail
 
 RELEASE_TAG="v3.7.0"
-DEFAULT_COMMIT_SHA="74e07ccf0dc168a694e6ed50f658dff8cb9b60ee"
+DEFAULT_COMMIT_SHA="3c0c982df5079c4ca5c187255128312db57b8aed"
 DEFAULT_REF="$DEFAULT_COMMIT_SHA"
 REPO_URL="${OMALINK_REPO:-https://github.com/M30W-M1X/omalink.git}"
 RELEASES_URL="https://github.com/M30W-M1X/omalink/releases/tag/${RELEASE_TAG}"
@@ -56,7 +56,7 @@ Options:
                        otherwise defaults to ~/.local/share/omalink)
   --ref COMMIT_SHA     Immutable 40-char commit SHA (or verified release tag v3.7.0)
                        to install when cloning remotely
-                       (default: 74e07ccf0dc168a694e6ed50f658dff8cb9b60ee)
+                       (default: 3c0c982df5079c4ca5c187255128312db57b8aed)
   --allow-mutable      Explicitly allow a mutable git ref or locally modified files (not recommended)
   --port PORT          Bridge listen port (default: 7842)
   --tls                Enable self-signed TLS encryption on the bridge service (default)
@@ -178,7 +178,7 @@ verify_runtime_digests() {
   if ! (
     cd "$target_dir" && sha256sum -c --status <<'EOF_SHA256'
 a88ee7d5b2e4ea936f0d83ae25ddc33e7a75799734a497e524ac317ee06e1ae1  manifest.json
-b7ee3348859781a1da84d2e71128c84347145b6d4bf780e740abf1414f5a809f  bridge/omarchy_wizard_bridge.py
+f5b9d2ac2e520b1ea10556b844e5d1e7802394a7dfa9c4fe514c304b98166c89  bridge/omarchy_wizard_bridge.py
 08204f0acf2d2c87221fb12ce76223b4d8fdb8cf1df95ec054a0bee1b8d46b27  bridge/omarchy_control.py
 2b2f274dc7b0e7d94f58ac61aa578672def4b23f7a06ad20035f4b1aa302da46  bridge/omarchy_continuity.py
 2c708c3e1fc9d1cbd3930fbf8cff55f15c5ca96096e3f2cade152ce641dbad35  bridge/omarchy_desktop.py
@@ -186,7 +186,7 @@ b7dd6b9958741d23d8e5e4c65db0a7311c51779e61b42c1a06a565c32189e749  bridge/omarchy
 116a0231c0ea8edf2d19a6150b18fdb19aed83c34556e823b738b73c45bd0fca  bridge/omarchy_pty.py
 66d185f29f85f98a439350b895e46b9a1bc8d16fae195eddcac47e7faabc9ceb  bridge/omarchy_sessions.py
 4c243d5442d9144f2c43980f0348c24ea0d8af7b1d4fe42290408ea68eb1ef81  omarchy-plugin/status.py
-b4099322fd4e801d49ac3ec0211d9a0efc69977d4dc1ddcc27919bced9adea36  omarchy-plugin/Panel.qml
+6ec7fe4867faf0d6611b43a4c289f967bae49c8712e5fbbb5ecafae0209a8db3  omarchy-plugin/Panel.qml
 8be84d43e8dcd6e935e0707dfbc07f65f0e9abcd08cc3bb04a53611c0dcd27c2  omarchy-plugin/WizardIcon.qml
 EOF_SHA256
   ); then
