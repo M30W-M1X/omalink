@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Privacy Policy for OmaLink (io.github.m30w_m1x.omalink), the local-only Android Continuity, Remote Desktop, and AI Agent companion for Omarchy Linux. Zero tracking, zero telemetry, zero third-party servers.">
+<link rel="canonical" href="https://m30w-m1x.github.io/omalink/privacy.html">
+<meta name="color-scheme" content="light dark">
+<title>OmaLink — Privacy Policy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Silkscreen:wght@400;700&family=B612:wght@400;700&family=B612+Mono:wght@400;700&display=swap">
+<style>
+  :root{
+    --bg:#f3ebd6; --surface:#fffaf0; --surface-2:#e3d6b8;
+    --ink:#1b1829; --ink-2:#3b3552; --ink-3:#6b6285;
+    --rule:#1b1829; --rule-2:#564e73;
+    --accent:#2294d6; --accent-ink:#115f91; --accent-wash:#d6f1ff;
+    --alarm:#e54826; --alarm-ink:#b32e12; --alarm-wash:#ffe3d8;
+    --gold:#f2b629; --gold-wash:#fff1c4;
+    --grass:#4ea845; --stone:#c2c7d4; --violet:#6c4bd6;
+    --px-shadow:4px 4px 0 #1b1829;
+    --px-shadow-sm:2px 2px 0 #1b1829;
+    --f-pixel:"Press Start 2P",monospace;
+    --f-ui:"Silkscreen",monospace;
+    --f-text:"B612",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+    --f-mono:"B612 Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --maxw:960px;
+    color-scheme:light dark;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --bg:#141226; --surface:#1f1c38; --surface-2:#282447;
+      --ink:#f5eedc; --ink-2:#c7c1de; --ink-3:#8f87b0;
+      --rule:#070610; --rule-2:#4c4475;
+      --accent:#3cc5ff; --accent-ink:#8be2ff; --accent-wash:#102b45;
+      --alarm:#ff6b3d; --alarm-ink:#ff9470; --alarm-wash:#3b1e20;
+      --gold:#ffd15c; --gold-wash:#3b2f14;
+      --grass:#3e8c45; --stone:#6a708c; --violet:#9d7bff;
+      --px-shadow:4px 4px 0 #070610;
+      --px-shadow-sm:2px 2px 0 #070610;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#141226; --surface:#1f1c38; --surface-2:#282447;
+    --ink:#f5eedc; --ink-2:#c7c1de; --ink-3:#8f87b0;
+    --rule:#070610; --rule-2:#4c4475;
+    --accent:#3cc5ff; --accent-ink:#8be2ff; --accent-wash:#102b45;
+    --alarm:#ff6b3d; --alarm-ink:#ff9470; --alarm-wash:#3b1e20;
+    --gold:#ffd15c; --gold-wash:#3b2f14;
+    --grass:#3e8c45; --stone:#6a708c; --violet:#9d7bff;
+    --px-shadow:4px 4px 0 #070610;
+    --px-shadow-sm:2px 2px 0 #070610;
+  }
+
+  *,*::before,*::after{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0;background:var(--bg);
+    background-image:radial-gradient(var(--surface-2) 1.5px,transparent 1.5px);
+    background-size:16px 16px;
+    color:var(--ink);font-family:var(--f-text);font-size:15.5px;line-height:1.64;
+  }
+  :focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+  a{color:var(--accent-ink);text-underline-offset:2px;text-decoration-thickness:2px}
+  a:hover{color:var(--alarm)}
+  code{font-family:var(--f-mono);font-size:.88em;background:var(--surface);border:2px solid var(--rule);padding:.06em .36em}
+
+  /* ---- Unified Main Site Nav ---- */
+  .nav{
+    position:sticky;top:0;z-index:60;background:var(--surface);
+    border-bottom:4px solid var(--rule);box-shadow:0 4px 0 rgba(0,0,0,.14);
+  }
+  .nav-in{
+    max-width:1180px;margin:0 auto;padding:0 clamp(16px,4vw,48px);
+    min-height:64px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  }
+  .brand{
+    display:inline-flex;align-items:center;gap:10px;
+    font-family:var(--f-pixel);font-size:13px;text-decoration:none;color:var(--ink);
+  }
+  .brand svg{width:30px;height:30px;display:block;shape-rendering:crispEdges}
+  .nav-links{display:flex;gap:10px;margin-left:auto;align-items:center;flex-wrap:wrap}
+  .nav-links a{
+    font-family:var(--f-ui);font-size:11.5px;font-weight:700;text-transform:uppercase;
+    text-decoration:none;color:var(--ink-2);padding:5px 9px;border:2px solid transparent;
+  }
+  .nav-links a:hover{color:var(--alarm);border-color:var(--rule);background:var(--bg)}
+  .nav-links a[aria-current="page"]{
+    background:var(--gold-wash);color:var(--ink);border:2px solid var(--rule);
+    box-shadow:var(--px-shadow-sm);
+  }
+  .nav-links .navcta{
+    background:var(--alarm);color:#fff;border:3px solid var(--rule);padding:6px 11px;
+    box-shadow:var(--px-shadow-sm);
+  }
+  .nav-links .navcta:hover{background:var(--alarm-ink);color:#fff}
+  .themebtn,.menubtn{
+    background:var(--gold-wash);border:3px solid var(--rule);color:var(--ink);
+    width:36px;height:34px;cursor:pointer;font-family:var(--f-ui);font-size:14px;
+    display:grid;place-items:center;box-shadow:var(--px-shadow-sm);
+  }
+  .menubtn{display:none;margin-left:auto}
+  @media (max-width:860px){
+    .menubtn{display:grid}
+    .nav-links{display:none;width:100%;padding:8px 0 14px;flex-direction:column;align-items:stretch;border-top:3px solid var(--rule)}
+    .nav-links.open{display:flex}
+    .nav-links a{padding:8px 10px}
+  }
+
+  main{max-width:var(--maxw);margin:0 auto;padding:42px clamp(16px,4vw,48px) 96px}
+  h1{font-family:var(--f-pixel);font-size:clamp(1.2rem,2.5vw,1.7rem);line-height:1.4;margin:0 0 14px}
+  .lede{color:var(--ink-2);font-size:1.03rem;max-width:66ch;margin:0 0 28px}
+  .meta-bar{
+    display:flex;flex-wrap:wrap;gap:10px;margin-bottom:26px;
+  }
+  .pill{
+    font-family:var(--f-ui);font-size:10.5px;text-transform:uppercase;
+    background:var(--gold-wash);color:var(--ink);border:2px solid var(--rule);
+    padding:4px 9px;box-shadow:var(--px-shadow-sm);
+  }
+  .promise{
+    margin-bottom:28px;border:4px solid var(--rule);border-left:8px solid var(--grass);
+    background:var(--accent-wash);padding:18px 20px;box-shadow:var(--px-shadow);
+  }
+  .promise strong{font-family:var(--f-ui);display:block;margin-bottom:6px;color:var(--ink);font-size:1rem}
+
+  .card{
+    background:var(--surface);border:4px solid var(--rule);padding:22px 24px;
+    margin-bottom:18px;box-shadow:var(--px-shadow);
+  }
+  .top{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-bottom:12px}
+  .id{
+    font-family:var(--f-pixel);font-size:10.5px;color:#fff;background:var(--accent-ink);
+    border:2px solid var(--rule);padding:4px 8px;
+  }
+  .card h2{font-family:var(--f-ui);font-size:1.06rem;margin:0;color:var(--ink)}
+  .badge{
+    font-family:var(--f-ui);font-size:10px;text-transform:uppercase;font-weight:700;
+    padding:3px 8px;border:2px solid var(--rule);margin-left:auto;background:var(--grass);color:#fff;
+  }
+  .card p{margin:0 0 10px;color:var(--ink-2)}
+  .card p:last-child{margin-bottom:0}
+  .card ul{margin:8px 0 0;padding-left:20px;color:var(--ink-2)}
+  .card li{margin:7px 0}
+
+  .scroll{overflow-x:auto;margin-top:12px;border:3px solid var(--rule);background:var(--bg)}
+  table{border-collapse:collapse;width:100%;min-width:520px;font-size:.92rem}
+  th,td{text-align:left;padding:12px 14px;border-bottom:3px solid var(--rule);vertical-align:top}
+  thead th{font-family:var(--f-ui);font-size:11px;text-transform:uppercase;background:var(--surface-2);color:var(--ink)}
+  tbody tr:last-child td{border-bottom:none}
+  td:first-child{font-weight:700;color:var(--ink);width:32%}
+
+  .foot{
+    margin-top:44px;padding-top:20px;border-top:4px solid var(--rule);
+    font-size:12.5px;color:var(--ink-2);display:flex;flex-wrap:wrap;gap:16px;justify-content:space-between;
+  }
+  .foot a{font-family:var(--f-ui);font-weight:700;font-size:11.5px;text-transform:uppercase;text-decoration:none;margin-right:14px}
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <div class="nav-in">
+    <a class="brand" href="index.html" aria-label="OmaLink — home">
+      <svg viewBox="0 0 16 16" aria-hidden="true">
+        <rect x="7" y="1" width="3" height="2" fill="var(--violet)"/>
+        <rect x="5" y="3" width="5" height="2" fill="var(--violet)"/>
+        <rect x="4" y="5" width="7" height="3" fill="var(--violet)"/>
+        <rect x="3" y="8" width="10" height="2" fill="var(--gold)"/>
+        <rect x="1" y="10" width="14" height="3" fill="var(--violet)"/>
+        <rect x="2" y="3" width="2" height="2" fill="var(--gold)"/>
+        <rect x="12" y="12" width="3" height="3" fill="var(--grass)"/>
+      </svg>
+      OMALINK
+    </a>
+    <button class="menubtn" id="menubtn" type="button" aria-label="Toggle navigation" aria-expanded="false">☰</button>
+    <nav class="nav-links" id="navlinks" aria-label="Primary">
+      <a href="index.html">Home</a>
+      <a href="index.html#screenshots">Screenshots</a>
+      <a href="index.html#security">Security</a>
+      <a href="privacy.html" aria-current="page">Privacy Policy</a>
+      <a href="https://github.com/M30W-M1X/omalink">GitHub</a>
+      <a href="index.html#install" class="navcta">Install</a>
+      <button class="themebtn" id="theme" type="button" aria-label="Switch light and dark theme">☀</button>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <h1>Privacy Policy</h1>
+  <p class="lede">OmaLink is an open-source, self-hosted companion app that connects your Android phone directly to your own Omarchy Linux desktop. We do not track you, we do not run any cloud servers, and we do not collect or sell any personal data.</p>
+
+  <div class="meta-bar">
+    <span class="pill">App: OmaLink</span>
+    <span class="pill">Package: io.github.m30w_m1x.omalink</span>
+    <span class="pill">Effective: November 21, 2026</span>
+    <span class="pill">License: MIT</span>
+  </div>
+
+  <div class="promise">
+    <strong>Plain-English Summary: Zero Collection. Zero Telemetry. Zero Cloud.</strong>
+    OmaLink has no user accounts, no analytics, no advertising SDKs, no crash-reporting trackers, and no developer-operated servers. Every byte stays strictly between your Android device and the Omarchy Linux computer you explicitly pair with on your local network or private Tailscale tailnet.
+  </div>
+
+  <div class="card">
+    <div class="top"><span class="id">01</span><h2>Information We Collect</h2><span class="badge">None</span></div>
+    <p><strong>We collect zero personal data.</strong> The developer of OmaLink does not receive, store, transmit, share, or sell any information about you, your device, your notifications, your clipboard, your files, or your usage of the app.</p>
+    <ul>
+      <li>No analytics or usage telemetry</li>
+      <li>No advertising identifiers or third-party ad networks</li>
+      <li>No cloud accounts, remote storage, or relay servers operated by the developer</li>
+      <li>No background tracking or location collection</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <div class="top"><span class="id">02</span><h2>How Local-Only Communication Works</h2></div>
+    <p>OmaLink operates exclusively as a direct client for the self-hosted OmaLink companion bridge running on your own Omarchy Linux machine:</p>
+    <ul>
+      <li><strong>Direct Connection:</strong> The app connects directly to the IP address / host and port you configure or pair via QR code / local mDNS discovery.</li>
+      <li><strong>Encrypted &amp; Authenticated Transport:</strong> Connections use <strong>TLS 1.2+ with SHA-256 certificate pinning</strong> and a 256-bit cryptographically random bearer token generated locally on your desktop.</li>
+      <li><strong>Explicit Confirmation:</strong> Incoming pairing deep links (<code>omalink://pair</code>) and Android Share Sheet handoffs always require explicit in-app confirmation before taking action.</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <div class="top"><span class="id">03</span><h2>Android Permissions &amp; On-Device Data Use</h2></div>
+    <p>Permissions requested by OmaLink are used strictly to power features you explicitly enable, communicating solely with your own paired desktop:</p>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th>Permission / Access</th><th>Why OmaLink Uses It (Local-Only)</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Local Network / Wi-Fi / mDNS</td>
+            <td>Discovers and connects directly to your self-hosted OmaLink bridge on your LAN or private VPN/Tailscale network.</td>
+          </tr>
+          <tr>
+            <td>Notification Listener Access <em>(Optional)</em></td>
+            <td>If you enable Continuity mirroring in Android Settings, relays incoming notification titles/text directly to your paired Omarchy desktop (<code>notify-send</code>) and lets you send inline replies back to Android. Never sent to any third party.</td>
+          </tr>
+          <tr>
+            <td>Post Notifications &amp; Alarm Audio</td>
+            <td>Displays optional silent desktop vitals, AI agent session response alerts, persistent connection status, and Find My Phone alert sounds with 1-tap stop.</td>
+          </tr>
+          <tr>
+            <td>Clipboard &amp; Android Share Sheet <em>(Optional)</em></td>
+            <td>Syncs clipboard text or shared links/files directly with your paired desktop only when you enable auto-sync or explicitly confirm a share action.</td>
+          </tr>
+          <tr>
+            <td>Files / Downloads <em>(User-Initiated)</em></td>
+            <td>Saves files you manually download from your desktop to your phone's Downloads folder, or uploads files you explicitly select to your desktop.</td>
+          </tr>
+          <tr>
+            <td>Device Name &amp; Battery Status</td>
+            <td>Sends your phone's display name and battery level directly to your own Omarchy top-bar widget while connected so you can view charge state on your desktop.</td>
+          </tr>
+          <tr>
+            <td>Foreground Service</td>
+            <td>Keeps the direct WebSocket link to your desktop alive when you switch apps so alerts and replies arrive reliably.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="top"><span class="id">04</span><h2>Local Storage &amp; Data Deletion</h2></div>
+    <p>OmaLink stores only your local configuration on your device (bridge host/IP, port, pairing token, pinned TLS certificate SHA-256 fingerprint, theme preferences, and mascot/icon choice). Android cloud auto-backup is explicitly disabled (<code>android:allowBackup="false"</code>) so pairing credentials are not backed up to cloud storage.</p>
+    <p><strong>Deleting your data:</strong> Because no data is stored on any external server, clearing the app's storage in Android Settings or uninstalling OmaLink permanently removes all app data from your device.</p>
+  </div>
+
+  <div class="card">
+    <div class="top"><span class="id">05</span><h2>Third-Party Services &amp; Open-Source Transparency</h2></div>
+    <p>OmaLink does not embed any third-party analytics, advertising, or tracking SDKs. The complete source code for both the Android app and the Omarchy Linux bridge is publicly auditable under the MIT License at <a href="https://github.com/M30W-M1X/omalink">github.com/M30W-M1X/omalink</a>.</p>
+  </div>
+
+  <div class="card">
+    <div class="top"><span class="id">06</span><h2>Children's Privacy</h2></div>
+    <p>OmaLink is a developer and Linux desktop utility not directed to children under 13, and does not knowingly collect personal information from anyone, including children.</p>
+  </div>
+
+  <div class="card">
+    <div class="top"><span class="id">07</span><h2>Changes &amp; Contact</h2></div>
+    <p>If this Privacy Policy is updated for future releases, the updated version and effective date will be posted on this page.</p>
+    <p>Questions or privacy inquiries can be submitted via the public issue tracker at <a href="https://github.com/M30W-M1X/omalink/issues">github.com/M30W-M1X/omalink/issues</a>.</p>
+  </div>
+
+  <div class="foot">
+    <div>
+      <a href="index.html">Home</a>
+      <a href="privacy.html">Privacy Policy</a>
+      <a href="https://github.com/M30W-M1X/omalink">GitHub</a>
+      <a href="https://github.com/M30W-M1X/omalink/releases">Releases</a>
+    </div>
+    <div>OmaLink &middot; <code>io.github.m30w_m1x.omalink</code> &middot; MIT License</div>
+  </div>
+</main>
+
+<script>
+(function(){
+  "use strict";
+  var root = document.documentElement, btn = document.getElementById("theme");
+  var saved; try { saved = localStorage.getItem("omalink-theme"); } catch(e){}
+  if (saved === "dark" || saved === "light") root.setAttribute("data-theme", saved);
+  function cur(){
+    var a = root.getAttribute("data-theme");
+    if (a) return a;
+    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  }
+  function paintIcon(){ btn.textContent = cur() === "dark" ? "☾" : "☀"; }
+  paintIcon();
+  btn.addEventListener("click", function(){
+    var next = cur() === "dark" ? "light" : "dark";
+    root.setAttribute("data-theme", next);
+    try { localStorage.setItem("omalink-theme", next); } catch(e){}
+    paintIcon();
+  });
+  var mb = document.getElementById("menubtn"), nl = document.getElementById("navlinks");
+  if (mb && nl){
+    mb.addEventListener("click", function(){
+      var open = nl.classList.toggle("open");
+      mb.setAttribute("aria-expanded", open ? "true" : "false");
+    });
+  }
+})();
+</script>
+</body>
+</html>

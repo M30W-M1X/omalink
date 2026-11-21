@@ -2,6 +2,8 @@
 
 **Android Continuity, Remote Desktop, Trackpad, OS Control, and AI Agent companion for Omarchy Linux** — featuring a zero-dependency Python bridge, an Omarchy top-bar plugin (`omalink.panel`), live Omarchy theme syncing, silent notification-shade machine vitals + Agy limits, and 5 animated stylized mascots & switchable Android app icons.
 
+> **Website & Docs:** [m30w-m1x.github.io/omalink](https://m30w-m1x.github.io/omalink/) &middot; **Android Privacy Policy:** [m30w-m1x.github.io/omalink/privacy.html](https://m30w-m1x.github.io/omalink/privacy.html)
+>
 > **Latest Android APK (`v3.7.1`):** Download `app-release.apk` and `SHA256SUMS` from [GitHub Release v3.7.1](https://github.com/M30W-M1X/omalink/releases/tag/v3.7.1) and verify with `grep '  app-release.apk$' SHA256SUMS | sha256sum -c -`.
 
 ---

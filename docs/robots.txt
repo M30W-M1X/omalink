@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://m30w-m1x.github.io/omalink/sitemap.xml
